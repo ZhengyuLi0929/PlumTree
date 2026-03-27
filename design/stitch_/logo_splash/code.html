@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>寻梅 Seeking Plum - Splash</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "inverse-on-surface": "#eff1f2",
+                        "on-secondary-container": "#5a6467",
+                        "on-primary-container": "#34606a",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed-variant": "#1f4d57",
+                        "error": "#ba1a1a",
+                        "surface-container-high": "#e6e8e9",
+                        "surface-bright": "#f8fafb",
+                        "primary": "#39656f",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#3f484b",
+                        "on-surface-variant": "#41484a",
+                        "surface": "#f8fafb",
+                        "on-tertiary-container": "#525b5f",
+                        "on-background": "#191c1d",
+                        "on-secondary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "surface-container-highest": "#e1e3e4",
+                        "surface-container-low": "#f2f4f5",
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed": "#dbe4e9",
+                        "on-tertiary-fixed": "#141d21",
+                        "secondary-fixed": "#dae4e7",
+                        "inverse-surface": "#2e3132",
+                        "tertiary-container": "#cad3d8",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-fixed-dim": "#bec8cd",
+                        "outline": "#71787b",
+                        "on-secondary-fixed": "#141d1f",
+                        "surface-container": "#eceeef",
+                        "background": "#f8fafb",
+                        "secondary": "#566063",
+                        "outline-variant": "#c0c8ca",
+                        "on-primary-fixed": "#001f26",
+                        "tertiary": "#576064",
+                        "surface-variant": "#e1e3e4",
+                        "secondary-fixed-dim": "#bec8cb",
+                        "primary-fixed": "#bdeaf6",
+                        "surface-container-lowest": "#ffffff",
+                        "on-surface": "#191c1d",
+                        "on-tertiary-fixed-variant": "#3f484c",
+                        "secondary-container": "#d7e1e4",
+                        "inverse-primary": "#a1ceda",
+                        "surface-dim": "#d8dadb",
+                        "surface-tint": "#39656f",
+                        "primary-fixed-dim": "#a1ceda",
+                        "primary-container": "#acd9e5"
+                    },
+                    fontFamily: {
+                        "headline": ["Newsreader"],
+                        "body": ["Manrope"],
+                        "label": ["Manrope"]
+                    },
+                    borderRadius: {"DEFAULT": "0px", "lg": "0px", "xl": "0px", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+        }
+        .ink-wash-gradient {
+            background: linear-gradient(to bottom, #f8fafb 0%, #eceeef 100%);
+        }
+        .zen-progress-track {
+            height: 120px;
+            width: 1px;
+            background-color: #c0c8ca;
+            overflow: hidden;
+            position: relative;
+        }
+        .zen-progress-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 40%; /* Mocking progress state */
+            background-color: #39656f;
+        }
+        .plum-branch-stroke {
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 0;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary-container selection:text-on-primary-container">
+<!-- Splash Screen Container -->
+<main class="relative h-screen w-screen flex flex-col items-center justify-center overflow-hidden ink-wash-gradient">
+<!-- Background Atmospheric Element -->
+<div class="absolute inset-0 z-0 pointer-events-none opacity-20">
+<div class="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full blur-[120px] bg-primary-container/30"></div>
+<div class="absolute bottom-[-5%] right-[-5%] w-[40%] h-[40%] rounded-full blur-[100px] bg-secondary-container/20"></div>
+</div>
+<!-- Central Content Area -->
+<section class="relative z-10 flex flex-col items-center">
+<!-- Minimalist Logo (High Fashion Stroke Style) -->
+<div class="mb-12 relative group">
+<div class="w-32 h-32 flex items-center justify-center">
+<svg class="w-full h-full fill-none stroke-primary" stroke-width="0.75" viewbox="0 0 100 100">
+<!-- Abstract interpretation of a plum blossom petal / scholar's seal edge -->
+<path d="M50 10 C 70 10, 90 30, 90 50 C 90 70, 70 90, 50 90 C 30 90, 10 70, 10 50 C 10 30, 30 10, 50 10" stroke-linecap="square"></path>
+<path class="plum-branch-stroke" d="M35 50 L 65 50"></path>
+<path class="plum-branch-stroke" d="M50 35 L 50 65"></path>
+<!-- Subtle corner accents mimicking traditional framing -->
+<path d="M20 20 L 25 20 M 20 20 L 20 25"></path>
+<path d="M80 80 L 75 80 M 80 80 L 80 75"></path>
+</svg>
+</div>
+</div>
+<!-- Identity Anchor -->
+<div class="text-center space-y-4">
+<h1 class="font-headline text-4xl font-extralight tracking-tight text-primary">
+                    寻梅 <span class="mx-4 text-outline-variant font-thin opacity-50">|</span> Seeking Plum
+                </h1>
+<p class="font-label text-[10px] tracking-[0.4em] uppercase text-on-surface-variant/60">
+                    The Ethereal Archive
+                </p>
+</div>
+<!-- Vertical Zen Loader -->
+<div class="mt-32 flex flex-col items-center space-y-6">
+<div class="zen-progress-track">
+<div class="zen-progress-bar"></div>
+</div>
+<!-- Status Label -->
+<span class="font-label text-[9px] tracking-[0.2em] text-outline italic">
+                    Unrolling the scroll...
+                </span>
+</div>
+</section>
+<!-- Aesthetic Footer Motif -->
+<div class="absolute bottom-16 w-full px-12 flex justify-between items-end">
+<div class="w-32 h-[1px] bg-outline-variant/20"></div>
+<div class="text-[10px] font-label text-outline-variant/40 tracking-tighter">
+                EST. SONG DYNASTY SPIRIT
+            </div>
+<div class="w-32 h-[1px] bg-outline-variant/20"></div>
+</div>
+</main>
+<!-- Semantic Shell Suppression (No Navigation Bars per requirements) -->
+<!-- Navigation shell is excluded because Splash Screen is a Focused/Transactional-start journey -->
+<!-- Decorative Artifact (Abstract Pattern) -->
+<div class="hidden">
+<img data-alt="Abstract ink wash texture representing rice paper" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAk-An4oendK5KDZZ52LsmiilErEifqOdxiji22lwk9Zf2be4fnJ1KFf63jEYCvpUhyH8rzmQsNv4rSldFqtApBJ9mjuETi1q5R9FJ9PJIabNuzzdT918NTuxSqwgG2yubEPnvsIq7a63Qft-EW-ERokpxo5XvLpL262bs5HOcmT5RPkQ2blcct2DwSHW6v8JJcv-8UmH3MP8URCmw-ZvAwPlDt6RKRmqmv9jlJ2DHoMP1lIhf0_qRn-HtfdfElFji0Z41d-41ss5k"/>
+</div>
+</body></html>

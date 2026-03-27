@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "error-container": "#ffdad6",
+              "tertiary-fixed": "#dbe4e9",
+              "on-surface-variant": "#41484a",
+              "on-primary-container": "#34606a",
+              "surface-tint": "#39656f",
+              "surface-dim": "#d8dadb",
+              "error": "#ba1a1a",
+              "surface-container-lowest": "#ffffff",
+              "outline": "#71787b",
+              "on-primary-fixed": "#001f26",
+              "outline-variant": "#c0c8ca",
+              "on-secondary-container": "#5a6467",
+              "on-secondary": "#ffffff",
+              "primary-container": "#acd9e5",
+              "on-primary-fixed-variant": "#1f4d57",
+              "primary": "#39656f",
+              "secondary": "#566063",
+              "tertiary-fixed-dim": "#bec8cd",
+              "secondary-fixed": "#dae4e7",
+              "primary-fixed": "#bdeaf6",
+              "on-error": "#ffffff",
+              "surface-container-low": "#f2f4f5",
+              "on-tertiary-fixed-variant": "#3f484c",
+              "secondary-fixed-dim": "#bec8cb",
+              "tertiary-container": "#cad3d8",
+              "inverse-primary": "#a1ceda",
+              "on-secondary-fixed": "#141d1f",
+              "primary-fixed-dim": "#a1ceda",
+              "secondary-container": "#d7e1e4",
+              "on-tertiary-fixed": "#141d21",
+              "on-tertiary": "#ffffff",
+              "on-primary": "#ffffff",
+              "on-error-container": "#93000a",
+              "surface-container": "#eceeef",
+              "surface": "#f8fafb",
+              "on-surface": "#191c1d",
+              "surface-container-highest": "#e1e3e4",
+              "inverse-on-surface": "#eff1f2",
+              "surface-variant": "#e1e3e4",
+              "surface-bright": "#f8fafb",
+              "background": "#f8fafb",
+              "tertiary": "#576064",
+              "surface-container-high": "#e6e8e9",
+              "inverse-surface": "#2e3132",
+              "on-background": "#191c1d",
+              "on-tertiary-container": "#525b5f",
+              "on-secondary-fixed-variant": "#3f484b"
+            },
+            fontFamily: {
+              "headline": ["Newsreader", "serif"],
+              "body": ["Manrope", "sans-serif"],
+              "label": ["Manrope", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0px", "lg": "0px", "xl": "0px", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .ink-wash-gradient {
+            background: linear-gradient(180deg, #f8fafb 0%, #eceeef 100%);
+        }
+        .zen-glow {
+            box-shadow: 0 0 40px rgba(57, 101, 111, 0.04);
+        }
+        ::placeholder {
+            color: rgba(25, 28, 29, 0.3) !important;
+            font-style: italic;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar -->
+<header class="bg-[#f8fafb] dark:bg-[#191c1d] fixed top-0 w-full z-40">
+<div class="flex justify-between items-center w-full px-8 py-6 max-w-screen-xl mx-auto">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-[#39656f] dark:text-[#acd9e5]" data-icon="menu_open">menu_open</span>
+</div>
+<h1 class="font-newsreader text-2xl tracking-widest text-[#39656f] dark:text-[#acd9e5]">寻梅</h1>
+<div class="w-6"></div> <!-- Balance spacer -->
+</div>
+<div class="h-px w-full bg-gradient-to-r from-transparent via-[#39656f]/10 to-transparent"></div>
+</header>
+<main class="min-h-screen pt-32 pb-40 px-6 max-w-screen-xl mx-auto flex flex-col items-center justify-center">
+<!-- Background Atmospheric Element -->
+<div class="fixed inset-0 pointer-events-none overflow-hidden -z-10">
+<div class="absolute top-1/4 -right-20 w-96 h-96 bg-primary/5 blur-[120px] rounded-full"></div>
+<div class="absolute bottom-1/4 -left-20 w-80 h-80 bg-secondary/5 blur-[100px] rounded-full"></div>
+</div>
+<!-- Center Content -->
+<section class="w-full max-w-3xl flex flex-col items-center">
+<div class="mb-20 text-center">
+<h2 class="font-headline text-5xl md:text-7xl font-light tracking-tight text-on-surface mb-6 opacity-90">
+                    Find the Resonance
+                </h2>
+<p class="font-body text-sm uppercase tracking-[0.3em] text-primary/60 font-medium">
+                    The Search for Wandering Souls
+                </p>
+</div>
+<!-- Poetic Search Input (The Inkstone) -->
+<div class="w-full relative group">
+<textarea class="w-full bg-transparent border-none border-b border-outline-variant/30 focus:border-primary focus:ring-0 text-2xl md:text-3xl font-headline italic tracking-wide transition-all duration-700 py-8 resize-none text-on-surface placeholder:opacity-50" placeholder="Write your heart's echo..." rows="4"></textarea>
+<!-- Focus Glow Decoration -->
+<div class="absolute bottom-0 left-0 w-full h-[1px] bg-primary scale-x-0 group-focus-within:scale-x-100 transition-transform duration-1000 origin-center"></div>
+<div class="flex justify-between items-center mt-12 w-full">
+<div class="flex gap-8">
+<button class="text-xs uppercase tracking-[0.2em] text-on-surface/40 hover:text-primary transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-lg" data-icon="filter_list">filter_list</span>
+                            Refine
+                        </button>
+<button class="text-xs uppercase tracking-[0.2em] text-on-surface/40 hover:text-primary transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-lg" data-icon="history">history</span>
+                            Past Echoes
+                        </button>
+</div>
+<button class="bg-primary text-on-primary px-10 py-4 font-body text-sm uppercase tracking-widest hover:bg-primary/90 transition-all zen-glow active:scale-95 duration-500">
+                        Seek Now
+                    </button>
+</div>
+</div>
+<!-- Bento Contextual Suggestions (The Gallery Artifacts) -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-32 w-full">
+<div class="p-8 bg-surface-container-low hover:bg-surface-container-lowest transition-colors duration-700 cursor-pointer">
+<span class="material-symbols-outlined text-primary mb-4" data-icon="auto_stories">auto_stories</span>
+<h3 class="font-headline text-xl mb-2">Poetic Archetypes</h3>
+<p class="font-body text-xs text-on-surface/60 leading-relaxed uppercase tracking-wider">Browse scholars by temperament and verse.</p>
+</div>
+<div class="p-8 bg-surface-container-low hover:bg-surface-container-lowest transition-colors duration-700 cursor-pointer">
+<span class="material-symbols-outlined text-primary mb-4" data-icon="landscape">landscape</span>
+<h3 class="font-headline text-xl mb-2">Serene Domains</h3>
+<p class="font-body text-xs text-on-surface/60 leading-relaxed uppercase tracking-wider">Connect through shared quietudes and spaces.</p>
+</div>
+<div class="p-8 bg-surface-container-low hover:bg-surface-container-lowest transition-colors duration-700 cursor-pointer">
+<span class="material-symbols-outlined text-primary mb-4" data-icon="ink_highlighter">ink_highlighter</span>
+<h3 class="font-headline text-xl mb-2">Ink Affinities</h3>
+<p class="font-body text-xs text-on-surface/60 leading-relaxed uppercase tracking-wider">Discover those who trace the same strokes.</p>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-12 pb-8 pt-4 bg-white/60 dark:bg-[#191c1d]/60 backdrop-blur-md shadow-[0_-4px_40px_rgba(57,101,111,0.04)] border-t border-[#39656f]/10">
+<!-- Active Item: Explore (Closest to search intent) -->
+<a class="flex flex-col items-center justify-center text-[#39656f] dark:text-[#acd9e5] scale-110 group transition-all duration-700" href="#">
+<span class="material-symbols-outlined" data-icon="explore" style="font-variation-settings: 'FILL' 1;">explore</span>
+<span class="font-manrope text-[10px] uppercase tracking-widest mt-1">Explore</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#191c1d]/40 dark:text-[#eceeef]/40 hover:text-[#39656f] dark:hover:text-[#acd9e5] transition-all duration-700 group" href="#">
+<span class="material-symbols-outlined" data-icon="chat_bubble_outline">chat_bubble_outline</span>
+<span class="font-manrope text-[10px] uppercase tracking-widest mt-1">Echoes</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#191c1d]/40 dark:text-[#eceeef]/40 hover:text-[#39656f] dark:hover:text-[#acd9e5] transition-all duration-700 group" href="#">
+<span class="material-symbols-outlined" data-icon="person_outline">person_outline</span>
+<span class="font-manrope text-[10px] uppercase tracking-widest mt-1">Profile</span>
+</a>
+</nav>
+<!-- Aesthetic Decoration: Floating Zen Elements -->
+<div class="fixed bottom-32 right-12 opacity-10 pointer-events-none select-none">
+<span class="font-headline text-9xl vertical-text leading-none text-primary" style="writing-mode: vertical-rl;">尋梅</span>
+</div>
+</body></html>

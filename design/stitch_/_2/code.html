@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,700&amp;family=Manrope:wght@200;300;400;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "error-container": "#ffdad6",
+              "tertiary-fixed": "#dbe4e9",
+              "on-surface-variant": "#41484a",
+              "on-primary-container": "#34606a",
+              "surface-tint": "#39656f",
+              "surface-dim": "#d8dadb",
+              "error": "#ba1a1a",
+              "surface-container-lowest": "#ffffff",
+              "outline": "#71787b",
+              "on-primary-fixed": "#001f26",
+              "outline-variant": "#c0c8ca",
+              "on-secondary-container": "#5a6467",
+              "on-secondary": "#ffffff",
+              "primary-container": "#acd9e5",
+              "on-primary-fixed-variant": "#1f4d57",
+              "primary": "#39656f",
+              "secondary": "#566063",
+              "tertiary-fixed-dim": "#bec8cd",
+              "secondary-fixed": "#dae4e7",
+              "primary-fixed": "#bdeaf6",
+              "on-error": "#ffffff",
+              "surface-container-low": "#f2f4f5",
+              "on-tertiary-fixed-variant": "#3f484c",
+              "secondary-fixed-dim": "#bec8cb",
+              "tertiary-container": "#cad3d8",
+              "inverse-primary": "#a1ceda",
+              "on-secondary-fixed": "#141d1f",
+              "primary-fixed-dim": "#a1ceda",
+              "secondary-container": "#d7e1e4",
+              "on-tertiary-fixed": "#141d21",
+              "on-tertiary": "#ffffff",
+              "on-primary": "#ffffff",
+              "on-error-container": "#93000a",
+              "surface-container": "#eceeef",
+              "surface": "#f8fafb",
+              "on-surface": "#191c1d",
+              "surface-container-highest": "#e1e3e4",
+              "inverse-on-surface": "#eff1f2",
+              "surface-variant": "#e1e3e4",
+              "surface-bright": "#f8fafb",
+              "background": "#f8fafb",
+              "tertiary": "#576064",
+              "surface-container-high": "#e6e8e9",
+              "inverse-surface": "#2e3132",
+              "on-background": "#191c1d",
+              "on-tertiary-container": "#525b5f",
+              "on-secondary-fixed-variant": "#3f484b"
+            },
+            fontFamily: {
+              "headline": ["Newsreader", "serif"],
+              "body": ["Manrope", "sans-serif"],
+              "label": ["Manrope", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0px", "lg": "0px", "xl": "0px", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .writing-vertical {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+        }
+        .ink-gradient {
+            background: linear-gradient(180deg, rgba(248, 250, 251, 1) 0%, rgba(236, 238, 239, 1) 100%);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body text-on-surface min-h-screen">
+<!-- TopAppBar -->
+<header class="bg-[#f8fafb] dark:bg-[#191c1d] sticky top-0 z-50">
+<div class="flex justify-between items-center w-full px-8 py-6 max-w-screen-xl mx-auto">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-[#39656f] cursor-pointer">arrow_back</span>
+<span class="font-newsreader text-2xl tracking-widest text-[#39656f] dark:text-[#acd9e5]">寻梅</span>
+</div>
+<div class="hidden md:flex gap-12 items-center">
+<nav class="flex gap-8 font-label text-sm tracking-widest uppercase">
+<a class="text-[#191c1d]/50 hover:text-[#39656f] transition-colors duration-500" href="#">Explore</a>
+<a class="text-[#191c1d]/50 hover:text-[#39656f] transition-colors duration-500" href="#">Echoes</a>
+<a class="text-[#39656f] transition-colors duration-500" href="#">Profile</a>
+</nav>
+</div>
+<span class="material-symbols-outlined text-[#39656f]">more_vert</span>
+</div>
+<div class="h-8 bg-gradient-to-b from-[#eceeef] to-transparent dark:from-[#191c1d] dark:to-transparent pointer-events-none"></div>
+</header>
+<main class="max-w-screen-xl mx-auto px-6 md:px-12 pb-32">
+<!-- Hero Section: Portrait & Name -->
+<section class="mt-16 flex flex-col md:flex-row gap-12 md:gap-24 items-start">
+<div class="relative group mx-auto md:mx-0">
+<div class="w-64 h-64 md:w-80 md:h-80 overflow-hidden border border-outline-variant/20 p-2">
+<img alt="Portrait of a young scholar" class="w-full h-full object-cover grayscale opacity-90 group-hover:grayscale-0 transition-all duration-1000" data-alt="High-end artistic portrait of a woman in minimalist setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBXLoJa3bKyFX-oWgd2IFfw48UHuwVqUrrJtl4z3oApkZlu9rwXGb6dgxUfakH-NHZqFo8tTA_XPTTkMgnN1Q8F8IfF54c6px0fpj6sS9lzT-iYkp99wfdHdThD7sYBnaqEbNJ6S0Pf9lLWHz7F93hacxsDybazQ4og6ir7R7wZVZEoqEt41_b3dyuUKf2fIw0Xuxhc2lTFtXJfPh4ac4cEWKIaCkaMBLtFagSMTCQULN1aw41VJMs124OI2WQXhY5alq9yDyD_vCo"/>
+</div>
+<div class="absolute -bottom-4 -right-4 bg-primary p-4 text-on-primary font-headline italic text-lg shadow-xl">
+                    林语
+                </div>
+</div>
+<div class="flex-1 space-y-12">
+<div class="space-y-4">
+<h1 class="font-headline text-5xl md:text-7xl tracking-tight leading-tight">
+                        Quietude in the <br/> <span class="text-primary italic">Lingering Mist.</span>
+</h1>
+<div class="h-px w-24 bg-primary/30"></div>
+</div>
+<div class="flex gap-16">
+<div class="space-y-2">
+<p class="font-label text-[10px] uppercase tracking-[0.2em] text-on-surface/50">Origin</p>
+<p class="font-body text-lg">Hangzhou</p>
+</div>
+<div class="space-y-2">
+<p class="font-label text-[10px] uppercase tracking-[0.2em] text-on-surface/50">Calling</p>
+<p class="font-body text-lg">Restorer of Ancient Scrolls</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Vertical Bio & Poetry Section -->
+<section class="mt-32 grid grid-cols-1 lg:grid-cols-12 gap-12">
+<div class="lg:col-span-4 bg-surface-container-low p-12 relative overflow-hidden">
+<div class="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+<span class="material-symbols-outlined text-[12rem]">history_edu</span>
+</div>
+<h2 class="font-label text-[10px] uppercase tracking-[0.3em] text-primary mb-8">Personal Bio</h2>
+<div class="flex justify-center h-[400px]">
+<div class="writing-vertical font-headline text-2xl text-on-surface/80 tracking-[0.15em] leading-[2.5] opacity-90">
+                        庭前落花。闲看流水。<br/>
+                        半卷诗书。一盏清茗。<br/>
+                        于浮世中寻觅，那一抹跨越千年的，<br/>
+                        淡雅与从容。
+                    </div>
+</div>
+</div>
+<!-- AI Echo Section -->
+<div class="lg:col-span-8 space-y-20 pt-8">
+<div class="space-y-8">
+<div class="flex items-baseline gap-4">
+<h2 class="font-headline text-4xl">Echo</h2>
+<span class="font-label text-xs uppercase tracking-widest text-primary/60">AI Compatibility Analysis</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="bg-surface-container-lowest p-8 border-l-2 border-primary/20">
+<p class="font-label text-[10px] uppercase tracking-widest text-on-surface/40 mb-4">Frequency Match</p>
+<p class="font-body text-sm leading-relaxed text-on-surface/70">
+                                Your shared appreciation for silent observation and tactile crafts creates a resonant frequency of 94%. Her affinity for restoration mirrors your interest in preservation.
+                            </p>
+</div>
+<div class="bg-surface-container-lowest p-8 border-l-2 border-primary/20">
+<p class="font-label text-[10px] uppercase tracking-widest text-on-surface/40 mb-4">Shared Silence</p>
+<p class="font-body text-sm leading-relaxed text-on-surface/70">
+                                Predictions suggest a high comfort in non-verbal spaces. Ideal interactions involve shared focus tasks: reading, tea preparation, or ink-wash practice.
+                            </p>
+</div>
+</div>
+</div>
+<!-- Essence Section -->
+<div class="space-y-8">
+<div class="flex items-baseline gap-4">
+<h2 class="font-headline text-4xl">Essence</h2>
+<span class="font-label text-xs uppercase tracking-widest text-primary/60">The Inner Landscape</span>
+</div>
+<div class="space-y-6">
+<div class="flex flex-col md:flex-row justify-between py-6 border-b border-outline-variant/10 group hover:bg-surface-container-low/30 transition-colors">
+<span class="font-label text-sm uppercase tracking-widest text-on-surface/50">Philosophy</span>
+<span class="font-body text-lg italic md:w-2/3">"Wabi-sabi through a Song lens; finding perfection in the weathered stroke."</span>
+</div>
+<div class="flex flex-col md:flex-row justify-between py-6 border-b border-outline-variant/10 group hover:bg-surface-container-low/30 transition-colors">
+<span class="font-label text-sm uppercase tracking-widest text-on-surface/50">Atmosphere</span>
+<span class="font-body text-lg italic md:w-2/3">Early morning mist, sandalwood incense, handmade paper.</span>
+</div>
+<div class="flex flex-col md:flex-row justify-between py-6 border-b border-outline-variant/10 group hover:bg-surface-container-low/30 transition-colors">
+<span class="font-label text-sm uppercase tracking-widest text-on-surface/50">Current Study</span>
+<span class="font-body text-lg italic md:w-2/3">Late Northern Song landscape techniques &amp; mineral pigment stability.</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- CTA Action -->
+<section class="mt-32 flex flex-col items-center gap-12">
+<div class="h-32 w-px bg-gradient-to-b from-primary/40 to-transparent"></div>
+<div class="text-center space-y-6">
+<p class="font-headline text-3xl italic">Shall we synchronize our echoes?</p>
+<button class="bg-primary text-on-primary px-12 py-5 font-label text-sm tracking-[0.3em] uppercase hover:bg-primary/90 transition-all active:scale-95">
+                    Connect
+                </button>
+</div>
+</section>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-12 pb-8 pt-4 bg-white/60 dark:bg-[#191c1d]/60 backdrop-blur-md border-t border-[#39656f]/10 shadow-[0_-4px_40px_rgba(57,101,111,0.04)]">
+<div class="flex flex-col items-center justify-center text-[#191c1d]/40 dark:text-[#eceeef]/40 transition-all duration-700">
+<span class="material-symbols-outlined" data-icon="explore">explore</span>
+<span class="font-manrope text-[10px] uppercase tracking-widest mt-1">Explore</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#191c1d]/40 dark:text-[#eceeef]/40 transition-all duration-700">
+<span class="material-symbols-outlined" data-icon="chat_bubble_outline">chat_bubble_outline</span>
+<span class="font-manrope text-[10px] uppercase tracking-widest mt-1">Echoes</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#39656f] dark:text-[#acd9e5] scale-110 transition-all duration-700">
+<span class="material-symbols-outlined" data-icon="person_outline" style="font-variation-settings: 'FILL' 1;">person_outline</span>
+<span class="font-manrope text-[10px] uppercase tracking-widest mt-1">Profile</span>
+</div>
+</nav>
+<!-- Aesthetic Decoration -->
+<div class="fixed top-0 right-0 w-1/3 h-screen bg-gradient-to-l from-primary/5 to-transparent pointer-events-none -z-10"></div>
+<div class="fixed bottom-0 left-0 p-12 pointer-events-none opacity-20 hidden lg:block">
+<span class="writing-vertical font-headline text-sm tracking-[0.5em] text-on-surface/30">THE ETHEREAL ARCHIVE — 2024</span>
+</div>
+</body></html>

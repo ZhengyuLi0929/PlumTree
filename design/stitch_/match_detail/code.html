@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "inverse-on-surface": "#eff1f2",
+              "on-secondary-container": "#5a6467",
+              "on-primary-container": "#34606a",
+              "on-primary": "#ffffff",
+              "on-primary-fixed-variant": "#1f4d57",
+              "error": "#ba1a1a",
+              "surface-container-high": "#e6e8e9",
+              "surface-bright": "#f8fafb",
+              "primary": "#39656f",
+              "on-error": "#ffffff",
+              "on-secondary-fixed-variant": "#3f484b",
+              "on-surface-variant": "#41484a",
+              "surface": "#f8fafb",
+              "on-tertiary-container": "#525b5f",
+              "on-background": "#191c1d",
+              "on-secondary": "#ffffff",
+              "error-container": "#ffdad6",
+              "surface-container-highest": "#e1e3e4",
+              "surface-container-low": "#f2f4f5",
+              "on-error-container": "#93000a",
+              "tertiary-fixed": "#dbe4e9",
+              "on-tertiary-fixed": "#141d21",
+              "secondary-fixed": "#dae4e7",
+              "inverse-surface": "#2e3132",
+              "tertiary-container": "#cad3d8",
+              "on-tertiary": "#ffffff",
+              "tertiary-fixed-dim": "#bec8cd",
+              "outline": "#71787b",
+              "on-secondary-fixed": "#141d1f",
+              "surface-container": "#eceeef",
+              "background": "#f8fafb",
+              "secondary": "#566063",
+              "outline-variant": "#c0c8ca",
+              "on-primary-fixed": "#001f26",
+              "tertiary": "#576064",
+              "surface-variant": "#e1e3e4",
+              "secondary-fixed-dim": "#bec8cb",
+              "primary-fixed": "#bdeaf6",
+              "surface-container-lowest": "#ffffff",
+              "on-surface": "#191c1d",
+              "on-tertiary-fixed-variant": "#3f484c",
+              "secondary-container": "#d7e1e4",
+              "inverse-primary": "#a1ceda",
+              "surface-dim": "#d8dadb",
+              "surface-tint": "#39656f",
+              "primary-fixed-dim": "#a1ceda",
+              "primary-container": "#acd9e5"
+            },
+            fontFamily: {
+              "newsreader": ["Newsreader", "serif"],
+              "manrope": ["Manrope", "sans-serif"],
+              "headline": ["Newsreader", "serif"],
+              "body": ["Manrope", "sans-serif"],
+              "label": ["Manrope", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0px", "lg": "0px", "xl": "0px", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+            font-size: 20px;
+        }
+        .ink-gradient {
+            background: linear-gradient(180deg, rgba(248, 250, 251, 0) 0%, rgba(236, 238, 239, 1) 100%);
+        }
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f8fafb;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #39656f22;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary-container selection:text-on-primary-container overflow-x-hidden">
+<!-- TopAppBar -->
+<nav class="bg-[#f8fafb] dark:bg-[#191c1d] flex justify-between items-center w-full px-8 py-6 fixed top-0 z-50 transition-opacity duration-300">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-[#39656f] dark:text-[#acd9e5] cursor-pointer hover:bg-[#39656f]/5 transition-colors duration-500 p-2">menu</span>
+</div>
+<div class="text-2xl font-newsreader tracking-tight font-light text-[#39656f] dark:text-[#acd9e5]">寻梅 Seeking Plum</div>
+<div class="w-10 h-10 bg-surface-container flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover opacity-80" data-alt="Small circular portrait of a scholar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXaeqbP3jd5ZRvIVBYyrUeq38foqL7uzLHBipGkPJvkmFEn3NCkpbArP3OL-9DCGp9ebopJQu72IyMM4HPpY8wRaoNeAYJwhbV3mQQRpTnlsihmAuFmeeGqRHWqWlKeT62_-akG1KM1sFpI6cgupHqg72ihpNd0ZIwHb8IP7jLUqss1gc8y_wJg0Xo-gaD4tyfXPrxJwXZVlkeZd9W9RH9eVKrYZED4dSVwbgN1GkiZcgojUAW12FX3_t2SCio9UfC1rQmSnBb8QA"/>
+</div>
+</nav>
+<main class="pt-24 pb-32 max-w-screen-xl mx-auto px-6 md:px-12">
+<!-- Hero Section: Art Gallery Aesthetic -->
+<section class="mt-16 mb-20">
+<div class="flex flex-col md:flex-row gap-12 items-start">
+<!-- Large Scholarly Portrait -->
+<div class="w-full md:w-3/5 bg-surface-container p-4">
+<div class="relative aspect-[3/4] overflow-hidden">
+<img class="w-full h-full object-cover grayscale-[20%] contrast-[95%] brightness-[105%] transition-transform duration-[2000ms] hover:scale-105" data-alt="Elegant scholarly Asian female in minimalist clothing" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBE8Rpx0lRmwmQzEz23BY4TesLxvZToWV25mga4PvabKyPipDrDs8aw1ZzcEoW-SZZAvlwHCAdkxqM4PNxP8Gl5G4DGve2xFTkmFsPRqlFAcyWXJkWXZuJv7JCaz_gMSIfs9gYWI8Sg6SzNo3pZbgxXGEaqiuIYRAVb0XjhNYav3CyoS6N3qq3Z_-IDl9OPQvFf_pPTikoLx7wVtYg-iOW9SGR3V1DQw6uc3B5X0NSPd-BuI2mLIdCTmAlEIfMnr7yQMM7NPhpwScc"/>
+<div class="absolute inset-0 bg-primary/5 mix-blend-multiply"></div>
+</div>
+</div>
+<!-- Title & Initial Bio -->
+<div class="w-full md:w-2/5 md:pt-12">
+<h1 class="font-newsreader text-6xl md:text-7xl leading-tight mb-8 tracking-tighter text-primary">
+                        识君 <span class="block text-2xl font-light tracking-widest mt-2">Meeting You</span>
+</h1>
+<div class="space-y-6">
+<div class="flex items-baseline gap-4">
+<span class="font-newsreader text-4xl">林若云</span>
+<span class="font-label text-sm tracking-widest text-on-surface-variant/70 uppercase">Lin Ruoyun</span>
+</div>
+<p class="font-body text-lg leading-relaxed text-on-surface-variant max-w-sm">
+                            Curator of rare manuscripts. Wanderer of misty mountain paths. Seeking a resonance that transcends the spoken word.
+                        </p>
+<div class="pt-8 flex flex-wrap gap-4">
+<span class="px-4 py-1 border border-outline-variant/30 text-xs tracking-widest uppercase">History of Art</span>
+<span class="px-4 py-1 border border-outline-variant/30 text-xs tracking-widest uppercase">Guqin Performance</span>
+<span class="px-4 py-1 border border-outline-variant/30 text-xs tracking-widest uppercase">Tea Ceremony</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- AI Compatibility: The Sacred Math -->
+<section class="mt-32 mb-32 flex justify-center">
+<div class="w-full max-w-4xl bg-surface-container-low p-12 md:p-24 relative overflow-hidden">
+<!-- Background Atmospheric Element -->
+<div class="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-primary/5 blur-[100px]"></div>
+<div class="relative z-10 text-center">
+<h3 class="font-label text-xs tracking-[0.4em] uppercase text-primary mb-6">AI Compatibility Analysis</h3>
+<div class="font-newsreader text-8xl md:text-[10rem] text-primary leading-none mb-4 opacity-90">94%</div>
+<div class="font-newsreader italic text-2xl text-on-surface-variant mb-12">Resonant Frequency / 同频共振</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-12 text-left pt-12 border-t border-outline-variant/20">
+<div>
+<p class="font-label text-[10px] tracking-widest uppercase mb-2 text-primary/60">Intellectual Alignment</p>
+<p class="text-sm font-body leading-relaxed">Overlap in classical literary appreciation and philosophical inquiry reaches peak thresholds.</p>
+</div>
+<div>
+<p class="font-label text-[10px] tracking-widest uppercase mb-2 text-primary/60">Aesthetic Synergy</p>
+<p class="text-sm font-body leading-relaxed">Shared preference for Song Dynasty minimalism and spatial 'Liubai' in digital environments.</p>
+</div>
+<div>
+<p class="font-label text-[10px] tracking-widest uppercase mb-2 text-primary/60">Emotional Temperament</p>
+<p class="text-sm font-body leading-relaxed">Both parties exhibit 'Quietude' as a primary trait, favoring contemplative dialogue over noise.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- The Detailed Scroll -->
+<section class="mt-40 space-y-32">
+<div class="flex flex-col md:flex-row gap-16 items-center">
+<div class="w-full md:w-1/2">
+<img class="w-full aspect-[16/9] object-cover opacity-60" data-alt="Close up of ink wash painting textures" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDc8KlqXJpEx1C7Zpcb6F38B3WdnDvaQoadhIXlBvzzVwfiPOQyyuxHcqpCF9dveaE75JkSAn6BSt6ePt7F8somjKEmKa0yrvLRJmcAXBF3-HWREJUq2UKAbTb5U7HJyxxRS286d59ICCzFB0xVMpwdK95MBUctr6V4dVo-fFnNaw1_r1mqJrs3TXJgMEhNqYZEEibgmqgXuMG3w_O96Rg3XSqvPN4TyIJ8tzE9YrEsx4CiTR7ZWs3sGrCZ79_1XeTAAVW4ECurK5Q"/>
+</div>
+<div class="w-full md:w-1/2">
+<h4 class="font-newsreader text-4xl mb-6">心迹与笔触 <span class="block text-sm font-manrope tracking-widest mt-2 uppercase text-primary">Mindset &amp; Brushstrokes</span></h4>
+<p class="font-body text-on-surface-variant leading-loose">
+                        "In the silence of the library, I find the echoes of a thousand years. I believe that modern connection should feel as deliberate as a hand-copied scroll—slow, intentional, and deeply personal."
+                    </p>
+</div>
+</div>
+<div class="flex flex-col-reverse md:flex-row gap-16 items-center">
+<div class="w-full md:w-1/2">
+<h4 class="font-newsreader text-4xl mb-6">闲暇志趣 <span class="block text-sm font-manrope tracking-widest mt-2 uppercase text-primary">Leisure Pursuits</span></h4>
+<ul class="space-y-4 font-body text-on-surface-variant">
+<li class="flex items-center gap-4">
+<span class="w-8 h-px bg-primary/30"></span> Exploring forgotten temples in the misty suburbs.
+                        </li>
+<li class="flex items-center gap-4">
+<span class="w-8 h-px bg-primary/30"></span> Translating 12th-century poetry for digital archives.
+                        </li>
+<li class="flex items-center gap-4">
+<span class="w-8 h-px bg-primary/30"></span> Practicing the art of slow-brewed tea under moonlight.
+                        </li>
+</ul>
+</div>
+<div class="w-full md:w-1/2">
+<img class="w-full aspect-square object-cover opacity-70" data-alt="Old books and a cup of tea on a wooden table" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBIeheFg8UTFPPwfM2uDSrXS31yVu2zOHJQrNnP53ayCMUuV1jGlC8yjqVA6Uw8ZotUjXTX3Hnbwtrp9gkt-dpXFgnODGHbIj4ZoUhXJmatQMJQydBRPzHRXz2CiZCvUC2udwJQ9nDJpr0sS4J7ia5rHDxxRUTZ8OiIlvAju-9y56V_QX0IIQxvG-ZDzvmRu5P0h2xPe-7IcTLAEl4QuQtmDDw0Cw7NvjuwsLi4AUM8ZHcCjG2lA6FyyzDejokvQAp1NnSEVVo-fks"/>
+</div>
+</div>
+</section>
+<!-- CTA Section -->
+<section class="mt-60 mb-40 text-center">
+<div class="inline-block relative">
+<button class="bg-primary text-on-primary font-manrope text-sm tracking-[0.3em] uppercase py-6 px-16 hover:bg-primary/90 transition-all duration-500 active:scale-95">
+                    开启对话 | Begin Echo
+                </button>
+<div class="absolute -inset-4 border border-primary/10 -z-10"></div>
+</div>
+<p class="mt-12 font-newsreader italic text-primary/60 text-lg">"The first ripple in a calm lake."</p>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-8 left-0 right-0 z-50 flex justify-around items-center px-12 bg-[#eceeef]/60 dark:bg-[#191c1d]/60 backdrop-blur-xl w-[90%] max-w-md mx-auto h-20 shadow-[0_20px_40px_rgba(57,101,111,0.04)]">
+<!-- Explore -->
+<a class="flex flex-col items-center justify-center text-[#39656f] dark:text-[#acd9e5] font-bold border-t-2 border-[#39656f] pt-2 transition-all duration-700" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="explore">explore</span>
+<span class="font-manrope text-[10px] tracking-widest uppercase">探索 Explore</span>
+</a>
+<!-- Echoes -->
+<a class="flex flex-col items-center justify-center text-[#191c1d]/40 dark:text-[#ffffff]/40 pt-2 hover:text-[#39656f] dark:hover:text-[#acd9e5] transition-all duration-700" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="auto_awesome">auto_awesome</span>
+<span class="font-manrope text-[10px] tracking-widest uppercase">回响 Echoes</span>
+</a>
+<!-- Profile -->
+<a class="flex flex-col items-center justify-center text-[#191c1d]/40 dark:text-[#ffffff]/40 pt-2 hover:text-[#39656f] dark:hover:text-[#acd9e5] transition-all duration-700" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="person">person</span>
+<span class="font-manrope text-[10px] tracking-widest uppercase">我 Profile</span>
+</a>
+</nav>
+<!-- Subtle Background Decoration -->
+<div class="fixed top-0 left-0 w-full h-full pointer-events-none -z-20 opacity-[0.03]">
+<svg height="100%" width="100%" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<pattern height="100" id="grid" patternunits="userSpaceOnUse" width="100">
+<path d="M 100 0 L 0 0 0 100" fill="none" stroke="#39656f" stroke-width="0.5"></path>
+</pattern>
+</defs>
+<rect fill="url(#grid)" height="100%" width="100%"></rect>
+</svg>
+</div>
+</body></html>

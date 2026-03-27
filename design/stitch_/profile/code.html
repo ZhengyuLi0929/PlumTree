@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "inverse-on-surface": "#eff1f2",
+              "on-secondary-container": "#5a6467",
+              "on-primary-container": "#34606a",
+              "on-primary": "#ffffff",
+              "on-primary-fixed-variant": "#1f4d57",
+              "error": "#ba1a1a",
+              "surface-container-high": "#e6e8e9",
+              "surface-bright": "#f8fafb",
+              "primary": "#39656f",
+              "on-error": "#ffffff",
+              "on-secondary-fixed-variant": "#3f484b",
+              "on-surface-variant": "#41484a",
+              "surface": "#f8fafb",
+              "on-tertiary-container": "#525b5f",
+              "on-background": "#191c1d",
+              "on-secondary": "#ffffff",
+              "error-container": "#ffdad6",
+              "surface-container-highest": "#e1e3e4",
+              "surface-container-low": "#f2f4f5",
+              "on-error-container": "#93000a",
+              "tertiary-fixed": "#dbe4e9",
+              "on-tertiary-fixed": "#141d21",
+              "secondary-fixed": "#dae4e7",
+              "inverse-surface": "#2e3132",
+              "tertiary-container": "#cad3d8",
+              "on-tertiary": "#ffffff",
+              "tertiary-fixed-dim": "#bec8cd",
+              "outline": "#71787b",
+              "on-secondary-fixed": "#141d1f",
+              "surface-container": "#eceeef",
+              "background": "#f8fafb",
+              "secondary": "#566063",
+              "outline-variant": "#c0c8ca",
+              "on-primary-fixed": "#001f26",
+              "tertiary": "#576064",
+              "surface-variant": "#e1e3e4",
+              "secondary-fixed-dim": "#bec8cb",
+              "primary-fixed": "#bdeaf6",
+              "surface-container-lowest": "#ffffff",
+              "on-surface": "#191c1d",
+              "on-tertiary-fixed-variant": "#3f484c",
+              "secondary-container": "#d7e1e4",
+              "inverse-primary": "#a1ceda",
+              "surface-dim": "#d8dadb",
+              "surface-tint": "#39656f",
+              "primary-fixed-dim": "#a1ceda",
+              "primary-container": "#acd9e5"
+            },
+            fontFamily: {
+              "headline": ["Newsreader", "serif"],
+              "body": ["Manrope", "sans-serif"],
+              "label": ["Manrope", "sans-serif"],
+              "newsreader": ["Newsreader", "serif"],
+              "manrope": ["Manrope", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0px", "lg": "0px", "xl": "0px", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .scrolling-content::-webkit-scrollbar { display: none; }
+        .scrolling-content { -ms-overflow-style: none; scrollbar-width: none; }
+        .ink-wash-gradient {
+            background: linear-gradient(to bottom, #f8fafb 0%, #eceeef 100%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar -->
+<header class="bg-[#f8fafb] dark:bg-[#191c1d] flex justify-between items-center w-full px-8 py-6 fixed top-0 z-50">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary cursor-pointer">menu</span>
+<h1 class="text-2xl font-newsreader text-[#39656f] dark:text-[#acd9e5] tracking-tight font-light">寻梅 Seeking Plum</h1>
+</div>
+<div class="w-10 h-10 bg-surface-container overflow-hidden rounded-full border border-outline-variant/10">
+<img alt="Scholar Profile" class="w-full h-full object-cover" data-alt="Close up of a handsome scholarly Asian male with calm expression" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC2bxN5sNvewXGdeZ_HC0YBTuXq_-mYPnrXjemmvFZAffKXQBNOqOB8HTyIzWRdgQkkhvP37acRojzDha7qp5NzVxf_C8yfpDgm6zKtr5tDQZtqVjgDdb7eAM-bJdIw47T-h0Cgvz1HyxgzV-EKNDPngYQiVcUVKJwlVE71T4orfApbeXf9oTLJKy5P3YH5gU9JC-yaBRME1mQDiXJalzcq3XhqKXt2-pw32ZAZl0xLVKMbVVEG3PA-wGXdklw7OuUi7iTaUKmq_wM"/>
+</div>
+</header>
+<main class="pt-24 pb-32 px-6 max-w-2xl mx-auto scrolling-content">
+<!-- Hero Section: Profile Header -->
+<section class="flex flex-col items-center mt-12 mb-20 text-center">
+<div class="relative mb-8">
+<div class="w-40 h-40 p-1 bg-gradient-to-tr from-primary/20 to-transparent rounded-full">
+<div class="w-full h-full rounded-full overflow-hidden border border-primary/10">
+<img alt="User Avatar" class="w-full h-full object-cover" data-alt="Portrait of a handsome scholarly Asian male with calm expression" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAvOeCs3b-Hln1fwjDcKjytu1mBLFiN-2d7JJcYHRJbPzUfUP2fXwj-PbC-yYeEy59xqzWAd96TylhmvGFm0QJTQ1tnkNXISL0yBRpjPJLc2lthaWjrvER9cNmQIXHpsdFvtfz_QrduxG-toFMJqCEqB48nXYPIFBfiPwJr3l-_m0gChALmEv_tENGyZMsANcBgN1OiGthlNnP_hrjItEZ2KHMjF3pVp5CrgmSSM1Z-NAgsHb_1Q4Pxj4DHBsN9V8JJaTJZpu6V1aw"/>
+</div>
+</div>
+<div class="absolute bottom-1 right-1 bg-primary text-on-primary p-2 rounded-full cursor-pointer hover:bg-primary-fixed-dim transition-colors duration-500">
+<span class="material-symbols-outlined text-sm">edit</span>
+</div>
+</div>
+<h2 class="text-4xl font-newsreader font-light italic text-on-surface tracking-tight mb-2">Lin Zeyuan</h2>
+<p class="font-label text-xs uppercase tracking-[0.3em] text-on-surface-variant/60">Digital Archivist &amp; Poet</p>
+</section>
+<!-- Bento Layout for Profile Data -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-16">
+<!-- About Me Section -->
+<section class="flex flex-col gap-6 md:col-span-2">
+<div class="flex items-baseline justify-between">
+<h3 class="font-newsreader text-xl font-medium text-primary">自述 | About Me</h3>
+<div class="h-[1px] flex-grow mx-4 bg-outline-variant/30"></div>
+</div>
+<div class="relative bg-surface-container-low p-8 border-l-2 border-primary/20 italic font-newsreader text-lg leading-relaxed text-on-surface-variant">
+<p class="mb-4">"Seeking the fragrance of plum blossoms in the digital mist. I believe that technology should not be loud, but a quiet vessel for human wisdom and cultural heritage."</p>
+<p>Between the lines of code and the strokes of a brush, I find a rhythm that reconciles the ancient with the immediate.</p>
+<div class="absolute -right-2 -bottom-2 opacity-5">
+<span class="material-symbols-outlined text-8xl" style="font-variation-settings: 'FILL' 1;">history_edu</span>
+</div>
+</div>
+</section>
+<!-- Interests Section -->
+<section class="flex flex-col gap-6">
+<h3 class="font-newsreader text-xl font-medium text-primary">雅兴 | Interests</h3>
+<ul class="space-y-4 font-body text-sm text-on-surface-variant">
+<li class="flex items-center gap-3">
+<span class="w-1.5 h-1.5 bg-primary"></span>
+<span>Ink Wash Painting (Shuimo)</span>
+</li>
+<li class="flex items-center gap-3">
+<span class="w-1.5 h-1.5 bg-primary"></span>
+<span>Classical Music Preservation</span>
+</li>
+<li class="flex items-center gap-3">
+<span class="w-1.5 h-1.5 bg-primary"></span>
+<span>Epigraphy &amp; Calligraphy</span>
+</li>
+<li class="flex items-center gap-3">
+<span class="w-1.5 h-1.5 bg-primary"></span>
+<span>Computational Linguistics</span>
+</li>
+</ul>
+</section>
+<!-- Location/Social Context -->
+<section class="flex flex-col gap-6">
+<h3 class="font-newsreader text-xl font-medium text-primary">居所 | Sanctuary</h3>
+<div class="bg-surface-container p-6 flex flex-col items-center justify-center text-center">
+<span class="material-symbols-outlined text-primary mb-3">location_on</span>
+<p class="font-newsreader text-lg">Hangzhou, China</p>
+<p class="text-[10px] font-label uppercase tracking-widest text-on-surface-variant/50 mt-1">West Lake District</p>
+</div>
+</section>
+<!-- Actions -->
+<section class="md:col-span-2 mt-8 flex justify-center gap-8">
+<button class="bg-primary text-on-primary px-12 py-3 text-sm font-label tracking-widest uppercase hover:bg-primary-fixed-dim transition-all duration-500">
+                    保存 | Save
+                </button>
+<button class="border border-outline-variant px-12 py-3 text-sm font-label tracking-widest uppercase hover:bg-surface-container-low transition-all duration-500">
+                    编辑 | Edit
+                </button>
+</section>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-8 left-0 right-0 z-50 flex justify-around items-center px-12">
+<div class="bg-[#eceeef]/60 dark:bg-[#191c1d]/60 backdrop-blur-xl shadow-[0_20px_40px_rgba(57,101,111,0.04)] w-[90%] max-w-md flex justify-around items-center py-4">
+<!-- Explore -->
+<a class="flex flex-col items-center justify-center text-[#191c1d]/40 dark:text-[#ffffff]/40 pt-2 hover:text-[#39656f] transition-all duration-700" href="#">
+<span class="material-symbols-outlined" data-icon="explore">explore</span>
+<span class="font-manrope text-[10px] tracking-widest uppercase mt-1">探索 Explore</span>
+</a>
+<!-- Echoes -->
+<a class="flex flex-col items-center justify-center text-[#191c1d]/40 dark:text-[#ffffff]/40 pt-2 hover:text-[#39656f] transition-all duration-700" href="#">
+<span class="material-symbols-outlined" data-icon="auto_awesome">auto_awesome</span>
+<span class="font-manrope text-[10px] tracking-widest uppercase mt-1">回响 Echoes</span>
+</a>
+<!-- Profile (ACTIVE) -->
+<a class="flex flex-col items-center justify-center text-[#39656f] dark:text-[#acd9e5] font-bold border-t-2 border-[#39656f] pt-2 scale-95 transition-transform duration-500" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-manrope text-[10px] tracking-widest uppercase mt-1">我 Profile</span>
+</a>
+</div>
+</nav>
+</body></html>

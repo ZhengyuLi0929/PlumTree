@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "inverse-on-surface": "#eff1f2",
+              "on-secondary-container": "#5a6467",
+              "on-primary-container": "#34606a",
+              "on-primary": "#ffffff",
+              "on-primary-fixed-variant": "#1f4d57",
+              "error": "#ba1a1a",
+              "surface-container-high": "#e6e8e9",
+              "surface-bright": "#f8fafb",
+              "primary": "#39656f",
+              "on-error": "#ffffff",
+              "on-secondary-fixed-variant": "#3f484b",
+              "on-surface-variant": "#41484a",
+              "surface": "#f8fafb",
+              "on-tertiary-container": "#525b5f",
+              "on-background": "#191c1d",
+              "on-secondary": "#ffffff",
+              "error-container": "#ffdad6",
+              "surface-container-highest": "#e1e3e4",
+              "surface-container-low": "#f2f4f5",
+              "on-error-container": "#93000a",
+              "tertiary-fixed": "#dbe4e9",
+              "on-tertiary-fixed": "#141d21",
+              "secondary-fixed": "#dae4e7",
+              "inverse-surface": "#2e3132",
+              "tertiary-container": "#cad3d8",
+              "on-tertiary": "#ffffff",
+              "tertiary-fixed-dim": "#bec8cd",
+              "outline": "#71787b",
+              "on-secondary-fixed": "#141d1f",
+              "surface-container": "#eceeef",
+              "background": "#f8fafb",
+              "secondary": "#566063",
+              "outline-variant": "#c0c8ca",
+              "on-primary-fixed": "#001f26",
+              "tertiary": "#576064",
+              "surface-variant": "#e1e3e4",
+              "secondary-fixed-dim": "#bec8cb",
+              "primary-fixed": "#bdeaf6",
+              "surface-container-lowest": "#ffffff",
+              "on-surface": "#191c1d",
+              "on-tertiary-fixed-variant": "#3f484c",
+              "secondary-container": "#d7e1e4",
+              "inverse-primary": "#a1ceda",
+              "surface-dim": "#d8dadb",
+              "surface-tint": "#39656f",
+              "primary-fixed-dim": "#a1ceda",
+              "primary-container": "#acd9e5"
+            },
+            fontFamily: {
+              "headline": ["Newsreader", "serif"],
+              "body": ["Manrope", "sans-serif"],
+              "label": ["Manrope", "sans-serif"],
+              "newsreader": ["Newsreader", "serif"],
+              "manrope": ["Manrope", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0px", "lg": "0px", "xl": "0px", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        display: inline-block;
+        line-height: 1;
+      }
+      body {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      .xuan-paper {
+        background: linear-gradient(135deg, #ffffff 0%, #fcfdfd 100%);
+        box-shadow: 0 10px 30px -10px rgba(57, 101, 111, 0.05);
+      }
+      .ink-wash-btn {
+        background: linear-gradient(to right, #39656f, #4a7d88);
+        transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .ink-wash-btn:hover {
+        background: #2d5159;
+        letter-spacing: 0.1em;
+      }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body min-h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 right-0 z-50 bg-[#f8fafb] dark:bg-[#191c1d] flex justify-between items-center w-full px-8 py-6">
+<div class="flex items-center gap-4">
+<button class="text-[#39656f] dark:text-[#acd9e5] hover:bg-[#39656f]/5 transition-colors duration-500 p-2 active:opacity-70">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+</div>
+<div class="text-2xl font-newsreader tracking-tight font-light text-[#39656f] dark:text-[#acd9e5]">
+            寻梅 Seeking Plum
+        </div>
+<div class="flex items-center">
+<div class="w-10 h-10 bg-surface-container border border-outline-variant/15 flex items-center justify-center overflow-hidden">
+<img alt="Profile" class="w-full h-full object-cover" data-alt="Minimalist ink wash scholar profile avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD4ZbGgtp2fsbKMPV-RdqIlwPgsgM9Rk4IzKpCLkXt6LVdK8TmNHp06rjnDMxieaYxYr_Xc7iBNlYNKPasrhWG2jhFiX5Bq4ns-A50rLbzSdLwBmKpGODg6qXbuLAlVAOQaPEOv9GKURt1mXigWZ8UyRllb96aW8REOgeMBsKoleAfoRVigwc4c-NPyLVtcDWXQZSQfrpkUuqhA7TcBPAWnQfO7TnOXCPjnozaXQ6cTqQb5Cah_gX6ljnP9mQh-leU3Kj7jCA_dFCE"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow flex flex-col items-center justify-center px-6 pt-32 pb-48 max-w-5xl mx-auto w-full">
+<!-- Hero Text -->
+<div class="w-full mb-16 text-center">
+<h1 class="font-headline text-4xl md:text-6xl text-on-surface mb-4 font-light tracking-tight">
+                谁是你心中的回响？
+            </h1>
+<p class="font-label text-primary text-sm uppercase tracking-[0.3em] font-medium opacity-80">
+                Who is your heart's echo?
+            </p>
+</div>
+<!-- Central Input Area (The Xuan Paper) -->
+<div class="w-full max-w-3xl relative">
+<div class="xuan-paper p-1 pt-1 bg-surface-container-lowest border-b border-outline-variant/20">
+<textarea class="w-full bg-transparent border-none focus:ring-0 font-headline text-2xl md:text-3xl p-8 min-h-[200px] resize-none text-on-surface placeholder-on-surface-variant/30 italic" placeholder="请输入你的心念..."></textarea>
+<div class="flex justify-between items-center p-6 bg-surface-container-low/30">
+<div class="flex gap-6">
+<button class="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors duration-500 group">
+<span class="material-symbols-outlined text-xl" data-icon="history">history</span>
+<span class="font-label text-[10px] uppercase tracking-widest hidden md:inline">Memory</span>
+</button>
+<button class="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors duration-500 group">
+<span class="material-symbols-outlined text-xl" data-icon="tune">tune</span>
+<span class="font-label text-[10px] uppercase tracking-widest hidden md:inline">Refine</span>
+</button>
+</div>
+<button class="ink-wash-btn text-on-primary px-10 py-3 font-label text-xs uppercase tracking-[0.2em] font-bold flex items-center gap-3 active:scale-95 transition-transform">
+                        寻觅 Seek
+                        <span class="material-symbols-outlined text-sm" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Asymmetric Decoration -->
+<div class="absolute -left-12 top-0 h-full w-[1px] bg-gradient-to-b from-transparent via-outline-variant/20 to-transparent hidden lg:block"></div>
+<div class="absolute -right-20 bottom-10 opacity-10 pointer-events-none hidden xl:block">
+<span class="font-headline text-[120px] text-primary rotate-90 leading-none">梅</span>
+</div>
+</div>
+<!-- Featured Collections (Bento Style) -->
+<div class="w-full mt-32">
+<div class="flex items-baseline justify-between mb-12">
+<h2 class="font-headline text-2xl italic">文库精选 Archive Highlights</h2>
+<div class="h-[1px] flex-grow mx-8 bg-outline-variant/10"></div>
+<button class="font-label text-[10px] uppercase tracking-widest text-primary hover:underline">View All</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-12 gap-6 h-auto md:h-[400px]">
+<div class="md:col-span-7 bg-surface-container-low p-10 flex flex-col justify-between group cursor-pointer hover:bg-surface-container-lowest transition-colors duration-700">
+<div class="space-y-4">
+<span class="font-label text-[10px] uppercase tracking-[0.4em] text-primary">Poetry Archive</span>
+<h3 class="font-headline text-3xl font-light">宋词的远方</h3>
+<p class="text-on-surface-variant text-sm max-w-sm leading-relaxed">The distant echoes of Song Dynasty lyrics, exploring the melancholic beauty of 'Ci' poetry.</p>
+</div>
+<span class="material-symbols-outlined text-3xl font-light group-hover:translate-x-4 transition-transform duration-700" data-icon="arrow_right_alt">arrow_right_alt</span>
+</div>
+<div class="md:col-span-5 grid grid-rows-2 gap-6">
+<div class="bg-surface-container flex items-center p-8 gap-6 group cursor-pointer hover:bg-surface-container-lowest transition-colors duration-700">
+<div class="w-20 h-20 bg-surface-container-highest overflow-hidden">
+<img alt="Collection" class="w-full h-full object-cover grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-700" data-alt="Ethereal bamboo ink painting detail" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD3DlgeMXbFUVNHb6xvWJ4WKyFgCQOiJMr_wb-6Y-GLTaBNANSbwV27v-yFP97CMqfaEdAg2kVCZPDlj_za2xSVjfFPmHoEWP0rKVkIQD1OObCGcVbbWA5IhAESPvlQXUtlflEXsy_wqpf4Q_SB8Gt9BvjdzSTWCR-Y1aSXnaJDLgO31VeztjEGa-jjPm2NAC5bUehoMa7KEFwPN-B9EVy3gTFvdF_6gEpH9QGwvP_czwLrRsoqHMR5kyNbDHjnhMkX6yadbBzNDjU"/>
+</div>
+<div>
+<h4 class="font-headline text-xl">竹林七贤</h4>
+<p class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant/60">Seven Sages</p>
+</div>
+</div>
+<div class="bg-surface-container-low p-8 flex flex-col justify-end group cursor-pointer hover:bg-surface-container-lowest transition-colors duration-700">
+<h4 class="font-headline text-xl mb-1">山水意境</h4>
+<p class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant/60">Landscape Zen</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-8 left-0 right-0 z-50 flex justify-around items-center px-12 bg-[#eceeef]/60 dark:bg-[#191c1d]/60 backdrop-blur-xl w-[90%] max-w-md mx-auto h-20 shadow-[0_20px_40px_rgba(57,101,111,0.04)]">
+<!-- Active Tab: Explore -->
+<a class="flex flex-col items-center justify-center text-[#39656f] dark:text-[#acd9e5] font-bold border-t-2 border-[#39656f] pt-2 transition-all duration-700 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="explore">explore</span>
+<span class="font-manrope text-[10px] tracking-widest uppercase mt-1">探索 Explore</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#191c1d]/40 dark:text-[#ffffff]/40 pt-2 hover:text-[#39656f] dark:hover:text-[#acd9e5] transition-all duration-700 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="auto_awesome">auto_awesome</span>
+<span class="font-manrope text-[10px] tracking-widest uppercase mt-1">回响 Echoes</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#191c1d]/40 dark:text-[#ffffff]/40 pt-2 hover:text-[#39656f] dark:hover:text-[#acd9e5] transition-all duration-700 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-manrope text-[10px] tracking-widest uppercase mt-1">我 Profile</span>
+</a>
+</nav>
+<!-- Zen Background Elements -->
+<div class="fixed top-1/4 -right-20 w-96 h-96 bg-primary-container/10 blur-[100px] pointer-events-none -z-10 rounded-full"></div>
+<div class="fixed bottom-1/4 -left-20 w-64 h-64 bg-secondary-container/10 blur-[80px] pointer-events-none -z-10 rounded-full"></div>
+</body></html>

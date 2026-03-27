@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Seeking Plum | Echoes</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-lowest": "#ffffff",
+              "surface-container-high": "#e6e8e9",
+              "on-secondary-fixed-variant": "#3f484b",
+              "primary-fixed": "#bdeaf6",
+              "secondary-fixed-dim": "#bec8cb",
+              "on-tertiary-container": "#525b5f",
+              "on-tertiary": "#ffffff",
+              "primary-fixed-dim": "#a1ceda",
+              "secondary-fixed": "#dae4e7",
+              "on-primary-container": "#34606a",
+              "primary": "#39656f",
+              "surface-container": "#eceeef",
+              "tertiary-fixed": "#dbe4e9",
+              "on-tertiary-fixed": "#141d21",
+              "on-tertiary-fixed-variant": "#3f484c",
+              "surface-container-low": "#f2f4f5",
+              "secondary-container": "#d7e1e4",
+              "on-surface-variant": "#41484a",
+              "on-secondary-fixed": "#141d1f",
+              "on-error": "#ffffff",
+              "tertiary-fixed-dim": "#bec8cd",
+              "error-container": "#ffdad6",
+              "tertiary": "#576064",
+              "on-primary": "#ffffff",
+              "inverse-surface": "#2e3132",
+              "background": "#f8fafb",
+              "primary-container": "#acd9e5",
+              "surface-bright": "#f8fafb",
+              "on-background": "#191c1d",
+              "inverse-on-surface": "#eff1f2",
+              "surface-container-highest": "#e1e3e4",
+              "surface": "#f8fafb",
+              "outline-variant": "#c0c8ca",
+              "inverse-primary": "#a1ceda",
+              "outline": "#71787b",
+              "on-surface": "#191c1d",
+              "error": "#ba1a1a",
+              "surface-dim": "#d8dadb",
+              "on-primary-fixed-variant": "#1f4d57",
+              "on-primary-fixed": "#001f26",
+              "secondary": "#566063",
+              "surface-variant": "#e1e3e4",
+              "surface-tint": "#39656f",
+              "on-secondary": "#ffffff",
+              "on-error-container": "#93000a",
+              "on-secondary-container": "#5a6467",
+              "tertiary-container": "#cad3d8"
+            },
+            fontFamily: {
+              "headline": ["Newsreader", "serif"],
+              "body": ["Manrope", "sans-serif"],
+              "label": ["Manrope", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+            font-size: 20px;
+        }
+        body {
+            background-color: #f8fafb;
+            color: #191c1d;
+            font-family: 'Manrope', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .serif-italic {
+            font-family: 'Newsreader', serif;
+            font-style: italic;
+        }
+        /* Custom thin scrollbar */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-6 py-4 bg-stone-50/60 dark:bg-stone-900/60 backdrop-blur-xl bg-gradient-to-b from-stone-100 to-transparent dark:from-stone-800">
+<div class="flex items-center gap-4">
+<button class="text-[#39656f] dark:text-[#acd9e5] active:scale-95 duration-300">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<div class="flex flex-col">
+<h1 class="text-xl font-serif italic tracking-tight text-[#39656f] dark:text-[#acd9e5]">Ruoyun | 若云</h1>
+<span class="text-[10px] uppercase tracking-widest text-stone-400 font-label">Active now | 见信如晤</span>
+</div>
+</div>
+<div class="w-10 h-10 bg-surface-container-high overflow-hidden border border-outline-variant/20">
+<img alt="Match profile photo" class="w-full h-full object-cover grayscale-[0.2]" data-alt="Portrait of a serene woman with scholarly aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCeG1lUiQTsPu0GYaXmVXXIoGCz4mhtjLu_KaL-ao7CAonW753MRABULdV4rrLmZtfBxfvsB_kGeqYSjvyahQNhVUEsQ1e2ArFlKdjNGigO6aM7Re0YODezMhcBgjRaFZ5btilLDSB04yE1XVq-cv3ClXCQ-Ev29UMKppmr4q6gTQxJC-pJx2m9tLlJVAEn9x4fiKY7Tuu9vlzod6mwd0of4cNZEQ_xeHGIwnybDwaAJH8enaGyyKjmDtBjtpkcqLjVNlYe3Gq-Mrg"/>
+</div>
+</header>
+<!-- Chat Canvas -->
+<main class="pt-24 pb-32 px-6 min-h-screen flex flex-col gap-10">
+<!-- Date Marker -->
+<div class="flex justify-center">
+<span class="text-[10px] uppercase tracking-[0.2em] text-stone-400/60 font-label">The Vernal Equinox | 春分</span>
+</div>
+<!-- Message: Incoming -->
+<div class="flex flex-col gap-2 max-w-[85%]">
+<div class="p-5 bg-surface-container-low text-on-surface">
+<p class="font-headline text-lg leading-relaxed mb-2 italic">"I felt a resonance in your description of the misty mountains."</p>
+<p class="font-body text-sm text-on-surface-variant/80">我在阁下对山间云雾的描述中，感受到了某种共鸣。</p>
+</div>
+<span class="text-[9px] uppercase tracking-widest text-stone-400 font-label ml-1">10:24 AM</span>
+</div>
+<!-- Shared Artifact: Incoming Image -->
+<div class="flex flex-col gap-2 max-w-[85%]">
+<div class="p-3 bg-surface-container-low">
+<div class="aspect-[4/5] bg-stone-200 overflow-hidden">
+<img alt="Plum blossom branch" class="w-full h-full object-cover" data-alt="Minimalist ink-style photo of a single flowering plum branch" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD0k-4e4gciWuCxgya8LvnmZakUeJoyUo76-iLNO2jr0dVWpGMnrmJ2vNXg5Ht8ckzjV31DLd5TuLHZtjB_Nx0TrcPjv_6Qv5TDJURzTCuehKlY1qyKwlB3Pn1yyuVu5blbetTbaijWJusAB-dzSrH_F8eETijfzjpj7-EZNP89_d0_YlyiUDAhsOdzoCxxpmB11T-M11W3-N3XiD5lR-xyC3DY7DVgkDKjKloHB0wzML6JSio0p7yjitXi_rH28EKmHeOVOxS4lIk"/>
+</div>
+<div class="mt-4 pb-2">
+<p class="font-headline italic text-base">"A glimpse of the morning cold."</p>
+<p class="font-body text-[13px] text-on-surface-variant/80">晨起初寒，折梅一枝。</p>
+</div>
+</div>
+<span class="text-[9px] uppercase tracking-widest text-stone-400 font-label ml-1">10:26 AM</span>
+</div>
+<!-- Message: Outgoing -->
+<div class="flex flex-col gap-2 max-w-[85%] self-end items-end">
+<div class="p-5 bg-primary text-on-primary">
+<p class="font-headline text-lg leading-relaxed mb-2 italic">"It is said that the plum blossom is the soul of the scholar."</p>
+<p class="font-body text-sm opacity-80">常言道，梅即文人之骨。此枝韵味极佳。</p>
+</div>
+<span class="text-[9px] uppercase tracking-widest text-stone-400 font-label mr-1">11:02 AM</span>
+</div>
+<!-- Message: Incoming (Short) -->
+<div class="flex flex-col gap-2 max-w-[85%]">
+<div class="p-5 bg-surface-container-low text-on-surface">
+<p class="font-headline text-lg leading-relaxed italic">"Shall we listen to the rain tomorrow?"</p>
+<p class="font-body text-sm text-on-surface-variant/80 mt-2">明日雨水，可愿一同听雨？</p>
+</div>
+<span class="text-[9px] uppercase tracking-widest text-stone-400 font-label ml-1">11:15 AM</span>
+</div>
+</main>
+<!-- Input Area (The Inkstone) -->
+<section class="fixed bottom-0 left-0 w-full z-50 bg-stone-50/90 dark:bg-stone-950/90 backdrop-blur-md px-6 pt-4 pb-8 flex flex-col gap-4 border-t border-stone-200/20">
+<div class="flex items-end gap-4">
+<button class="p-2 text-stone-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="add_circle">add_circle</span>
+</button>
+<div class="flex-1 relative">
+<textarea class="w-full bg-transparent border-0 border-b border-outline-variant focus:ring-0 focus:border-primary px-0 py-2 font-body text-sm placeholder:text-stone-400/60 resize-none no-scrollbar" placeholder="Write your echo... | 落笔..." rows="1"></textarea>
+</div>
+<button class="p-2 text-primary hover:opacity-70 transition-opacity active:scale-95 duration-300">
+<span class="material-symbols-outlined" data-icon="send" style="font-variation-settings: 'FILL' 1;">send</span>
+</button>
+</div>
+<!-- Subtle Hint / Secondary Action -->
+<div class="flex justify-between items-center opacity-40">
+<span class="text-[9px] uppercase tracking-widest font-label">The Ink is Fresh | 墨迹未干</span>
+<div class="flex gap-4">
+<span class="material-symbols-outlined text-[16px]" data-icon="auto_awesome">auto_awesome</span>
+<span class="material-symbols-outlined text-[16px]" data-icon="ink_pen">ink_pen</span>
+</div>
+</div>
+</section>
+<!-- Navigation Shell Placeholder (Not visible on task-focused screens as per mandate, but structure noted) -->
+<!-- Suppressed to prioritize the focus on conversation journey -->
+</body></html>
