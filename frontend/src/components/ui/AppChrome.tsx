@@ -12,12 +12,14 @@ type TopBarProps = {
 
 const tabs = [
   { to: "/explore", labelZh: "探索", labelEn: "Explore", icon: "explore" },
+  { to: "/mind", labelZh: "心念", labelEn: "Mind", icon: "self_improvement" },
   { to: "/echoes", labelZh: "回响", labelEn: "Echoes", icon: "auto_awesome" },
   { to: "/profile", labelZh: "我", labelEn: "Profile", icon: "person" },
 ];
 
-function getSection(pathname: string): "explore" | "echoes" | "profile" | null {
+function getSection(pathname: string): "explore" | "mind" | "echoes" | "profile" | null {
   if (pathname.startsWith("/explore") || pathname.startsWith("/match")) return "explore";
+  if (pathname.startsWith("/mind")) return "mind";
   if (pathname.startsWith("/echoes")) return "echoes";
   if (pathname.startsWith("/profile")) return "profile";
   return null;
@@ -40,7 +42,7 @@ export function TopBar({ title = "寻梅", subtitle, leftIcon = "arrow_back", ri
   const [menuOpen, setMenuOpen] = useState(false);
   const section = getSection(location.pathname);
   const isSectionRoot =
-    location.pathname === "/explore" || location.pathname === "/echoes" || location.pathname === "/profile";
+    location.pathname === "/explore" || location.pathname === "/mind" || location.pathname === "/echoes" || location.pathname === "/profile";
   const fromSection = (location.state as { fromSection?: string } | null)?.fromSection;
   const canBackInSection = Boolean(section && !isSectionRoot && fromSection === section);
   const effectiveIcon = canBackInSection ? leftIcon : "menu";

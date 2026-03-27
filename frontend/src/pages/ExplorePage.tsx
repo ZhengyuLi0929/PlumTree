@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../app/language";
 import { BottomNav, TopBar } from "../components/ui/AppChrome";
 import { InkstoneTextarea } from "../components/ui/InkstoneTextarea";
@@ -70,9 +70,9 @@ export function ExplorePage() {
           <div className="mt-8 flex items-center justify-between gap-5">
             <div className="flex gap-6 text-[10px] tracking-[0.18em] text-[var(--on-surface)]/45">
               <button type="button">{tx("细化条件", "Refine")}</button>
-              <Link to="/explore-archive" state={{ fromSection: "explore" }}>
-                {tx("文库视图", "Archive")}
-              </Link>
+              <button onClick={() => navigate("/mind")} type="button">
+                {tx("心念", "Mind")}
+              </button>
             </div>
             <SealButton onClick={() => runMutation.mutate({ prompt })} disabled={!prompt.trim() || isBusy}>
               {tx("开始寻觅", "Seek")}

@@ -3,9 +3,9 @@ import { AppLayout } from "./layout";
 import { EchoesPage } from "../pages/EchoesPage";
 import { EchoChatPage } from "../pages/EchoChatPage";
 import { ExplorePage } from "../pages/ExplorePage";
-import { ExploreVariantPage } from "../pages/ExploreVariantPage";
 import { MatchDetailPage } from "../pages/MatchDetailPage";
 import { MatchGalleryPage } from "../pages/MatchGalleryPage";
+import { MindPage } from "../pages/MindPage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { SplashPage } from "../pages/SplashPage";
 
@@ -17,7 +17,7 @@ const router = createBrowserRouter([
       { index: true, element: <SplashPage /> },
       { path: "splash", element: <SplashPage /> },
       { path: "explore", element: <ExplorePage /> },
-      { path: "explore-archive", element: <ExploreVariantPage /> },
+      { path: "mind", element: <MindPage /> },
       { path: "profile", element: <ProfilePage /> },
       { path: "match/:profileId", element: <MatchDetailPage /> },
       { path: "match-gallery/:profileId", element: <MatchGalleryPage /> },
