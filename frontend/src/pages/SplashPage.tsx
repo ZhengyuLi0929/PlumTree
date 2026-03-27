@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../app/language";
-import { BottomNav } from "../components/ui/AppChrome";
 
 export function SplashPage() {
   const { tx } = useLanguage();
@@ -66,7 +65,6 @@ export function SplashPage() {
         <div className="text-[9px] tracking-wide text-[var(--on-surface-variant)]/35">{tx("宋韵雅意", "Song Dynasty Spirit")}</div>
         <div className="h-px w-20 bg-[var(--outline-variant)]/30" />
       </div>
-      <BottomNav />
     </main>
   );
 }

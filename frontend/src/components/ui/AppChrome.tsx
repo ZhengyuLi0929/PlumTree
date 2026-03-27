@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useLanguage } from "../../app/language";
 
 type TopBarProps = {
@@ -34,9 +34,10 @@ function AppLogoMini() {
 }
 
 export function TopBar({ title = "寻梅", subtitle, leftIcon = "arrow_back", rightSlot, onLeftClick }: TopBarProps) {
-  const { tx } = useLanguage();
+  const { lang, setLang, tx } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
   const section = getSection(location.pathname);
   const isSectionRoot =
     location.pathname === "/explore" || location.pathname === "/echoes" || location.pathname === "/profile";
@@ -49,28 +50,72 @@ export function TopBar({ title = "寻梅", subtitle, leftIcon = "arrow_back", ri
       onLeftClick();
       return;
     }
-    if (canBackInSection) navigate(-1);
+    if (canBackInSection) {
+      navigate(-1);
+      return;
+    }
+    setMenuOpen(true);
   };
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 bg-[var(--surface)]/95 px-4 py-4 backdrop-blur md:px-8 md:py-6">
-      <div className="mx-auto flex w-full max-w-screen-xl items-center justify-between">
-        <button
-          className={`material-symbols-outlined p-1 text-[var(--primary)] ${!canBackInSection ? "opacity-70" : ""}`}
-          onClick={handleBack}
-          type="button"
-          aria-label={tx("返回", "Back")}
-        >
-          {effectiveIcon}
-        </button>
-        <div className="text-center">
-          <h1 className="font-headline text-2xl font-light tracking-tight text-[var(--primary)] md:text-3xl">{title}</h1>
-          {subtitle && <p className="text-[10px] tracking-[0.2em] text-[var(--on-surface-variant)]">{subtitle}</p>}
+    <>
+      <header className="fixed inset-x-0 top-0 z-40 bg-[var(--surface)]/95 px-4 py-4 backdrop-blur md:px-8 md:py-6">
+        <div className="mx-auto flex w-full max-w-screen-xl items-center justify-between">
+          <button
+            className={`material-symbols-outlined p-1 text-[var(--primary)] ${!canBackInSection ? "opacity-70" : ""}`}
+            onClick={handleBack}
+            type="button"
+            aria-label={tx("返回", "Back")}
+          >
+            {effectiveIcon}
+          </button>
+          <div className="text-center">
+            <h1 className="font-headline text-2xl font-light tracking-tight text-[var(--primary)] md:text-3xl">{title}</h1>
+            {subtitle && <p className="text-[10px] tracking-[0.2em] text-[var(--on-surface-variant)]">{subtitle}</p>}
+          </div>
+          <div className="h-10 w-10 overflow-hidden bg-[var(--surface-container)]">{rightSlot ?? <AppLogoMini />}</div>
         </div>
-        <div className="h-10 w-10 overflow-hidden bg-[var(--surface-container)]">{rightSlot ?? <AppLogoMini />}</div>
-      </div>
-      <div className="mt-3 h-px w-full bg-gradient-to-r from-transparent via-[color:rgba(57,101,111,0.15)] to-transparent" />
-    </header>
+        <div className="mt-3 h-px w-full bg-gradient-to-r from-transparent via-[color:rgba(57,101,111,0.15)] to-transparent" />
+      </header>
+
+      {menuOpen && (
+        <div className="fixed inset-0 z-[70] flex">
+          <aside className="h-full w-[76%] max-w-xs bg-[var(--surface-container-lowest)] p-6 shadow-[10px_0_30px_rgba(57,101,111,0.08)]">
+            <div className="mb-8 flex items-center justify-between">
+              <h3 className="font-headline text-3xl text-[var(--primary)]">{tx("设置", "Settings")}</h3>
+              <button className="material-symbols-outlined text-[var(--on-surface-variant)]" onClick={() => setMenuOpen(false)} type="button">
+                close
+              </button>
+            </div>
+            <section className="space-y-4">
+              <p className="text-xs tracking-[0.15em] text-[var(--on-surface-variant)]">{tx("语言", "Language")}</p>
+              <div className="flex gap-2">
+                <button
+                  className={`px-4 py-2 text-sm ${lang === "zh" ? "bg-[var(--primary)] text-white" : "bg-[var(--surface-container)]"}`}
+                  type="button"
+                  onClick={() => setLang("zh")}
+                >
+                  中文
+                </button>
+                <button
+                  className={`px-4 py-2 text-sm ${lang === "en" ? "bg-[var(--primary)] text-white" : "bg-[var(--surface-container)]"}`}
+                  type="button"
+                  onClick={() => setLang("en")}
+                >
+                  English
+                </button>
+              </div>
+            </section>
+          </aside>
+          <button
+            className="h-full flex-1 bg-[color:rgba(25,28,29,0.26)]"
+            type="button"
+            aria-label={tx("关闭菜单", "Close menu")}
+            onClick={() => setMenuOpen(false)}
+          />
+        </div>
+      )}
+    </>
   );
 }
 
@@ -79,19 +124,19 @@ export function BottomNav() {
   const { tx } = useLanguage();
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto flex w-full max-w-md items-center justify-around border-t border-[color:rgba(57,101,111,0.12)] bg-[color:rgba(255,255,255,0.66)] px-6 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur md:bottom-6 md:w-[92%] md:rounded-none">
+    <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto flex w-full max-w-md items-center justify-around border-t border-[color:rgba(57,101,111,0.12)] bg-[color:rgba(255,255,255,0.66)] px-6 pb-[calc(0.36rem+env(safe-area-inset-bottom))] pt-1.5 backdrop-blur md:bottom-5 md:w-[90%]">
       {tabs.map((tab) => {
         const active = location.pathname.startsWith(tab.to);
         return (
           <Link
             key={tab.to}
-            className={`flex flex-col items-center justify-center gap-1 transition ${
+            className={`flex flex-col items-center justify-center gap-0.5 transition ${
               active ? "text-[var(--primary)]" : "text-[color:rgba(25,28,29,0.42)]"
             }`}
             to={tab.to}
           >
-            <span className="material-symbols-outlined text-[20px]">{tab.icon}</span>
-            <span className="text-[10px] tracking-[0.16em]">{tx(tab.labelZh, tab.labelEn)}</span>
+            <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
+            <span className="text-[9px] tracking-[0.14em]">{tx(tab.labelZh, tab.labelEn)}</span>
           </Link>
         );
       })}
