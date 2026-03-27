@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useLanguage } from "../app/language";
+import { BottomNav } from "../components/ui/AppChrome";
 
 export function SplashPage() {
+  const { tx } = useLanguage();
   const navigate = useNavigate();
   const [isExiting, setIsExiting] = useState(false);
 
@@ -44,10 +47,10 @@ export function SplashPage() {
 
       <div className="relative z-10 space-y-3 text-center">
         <h1 className="font-headline text-[2rem] font-extralight tracking-tight text-[var(--primary)] md:text-5xl">
-          寻梅
+          {tx("寻梅", "Seeking Plum")}
         </h1>
         <p className="text-[9px] tracking-[0.35em] text-[var(--on-surface-variant)]/70 md:text-[10px]">
-          云水书院
+          {tx("云水书院", "The Ethereal Archive")}
         </p>
       </div>
 
@@ -55,14 +58,15 @@ export function SplashPage() {
         <div className="relative h-24 w-px overflow-hidden bg-[var(--outline-variant)]/60">
           <div className="absolute inset-x-0 top-0 h-10 animate-[splashline_1.8s_ease-in-out_infinite] bg-[var(--primary)]" />
         </div>
-        <span className="text-[9px] tracking-[0.2em] text-[var(--on-surface-variant)]/70">卷轴徐徐展开...</span>
+        <span className="text-[9px] tracking-[0.2em] text-[var(--on-surface-variant)]/70">{tx("卷轴徐徐展开...", "Unrolling the scroll...")}</span>
       </div>
 
       <div className="absolute bottom-10 left-0 right-0 z-10 flex items-end justify-between px-8">
         <div className="h-px w-20 bg-[var(--outline-variant)]/30" />
-        <div className="text-[9px] tracking-wide text-[var(--on-surface-variant)]/35">宋韵雅意</div>
+        <div className="text-[9px] tracking-wide text-[var(--on-surface-variant)]/35">{tx("宋韵雅意", "Song Dynasty Spirit")}</div>
         <div className="h-px w-20 bg-[var(--outline-variant)]/30" />
       </div>
+      <BottomNav />
     </main>
   );
 }

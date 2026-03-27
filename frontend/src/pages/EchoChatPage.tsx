@@ -1,3 +1,5 @@
+import { useLanguage } from "../app/language";
+import { BottomNav } from "../components/ui/AppChrome";
 import { TopBar } from "../components/ui/AppChrome";
 
 const messages = [
@@ -8,12 +10,14 @@ const messages = [
 ];
 
 export function EchoChatPage() {
+  const { tx } = useLanguage();
+
   return (
     <div className="min-h-[100dvh] bg-[var(--surface)]">
-      <TopBar title="若云" subtitle="在线 · 见信如晤" />
+      <TopBar title="若云" subtitle={tx("在线 · 见信如晤", "Active now")} />
       <main className="mx-auto flex min-h-[100dvh] max-w-2xl flex-col gap-7 px-5 pb-40 pt-28">
         <div className="flex justify-center">
-          <span className="text-[10px] tracking-[0.22em] text-[var(--on-surface-variant)]/50">春分</span>
+          <span className="text-[10px] tracking-[0.22em] text-[var(--on-surface-variant)]/50">{tx("春分", "Vernal Equinox")}</span>
         </div>
         {messages.map((item, idx) => (
           <article
@@ -36,7 +40,7 @@ export function EchoChatPage() {
           </button>
           <textarea
             className="max-h-28 min-h-[40px] flex-1 resize-none border-0 border-b border-[var(--outline-variant)] bg-transparent px-0 py-2 text-sm outline-none focus:border-[var(--primary)]"
-            placeholder="落笔..."
+            placeholder={tx("落笔...", "Write your echo...")}
             rows={1}
           />
           <button className="material-symbols-outlined text-[var(--primary)]" type="button">
@@ -44,6 +48,7 @@ export function EchoChatPage() {
           </button>
         </div>
       </section>
+      <BottomNav />
     </div>
   );
 }

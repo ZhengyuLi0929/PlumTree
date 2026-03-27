@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useLanguage } from "../app/language";
 import { BottomNav, TopBar } from "../components/ui/AppChrome";
 
 const chats = [
@@ -8,9 +9,11 @@ const chats = [
 ];
 
 export function EchoesPage() {
+  const { tx } = useLanguage();
+
   return (
     <div className="min-h-[100dvh] bg-[var(--surface)] pb-32">
-      <TopBar title="回响" subtitle="与你同频的人" />
+      <TopBar title={tx("回响", "Echoes")} subtitle={tx("与你同频的人", "People in your resonance")} />
       <main className="mx-auto max-w-2xl px-5 pb-36 pt-28">
         <section className="space-y-4">
           {chats.map((chat) => (
@@ -18,6 +21,7 @@ export function EchoesPage() {
               className="block bg-[var(--surface-container-low)] px-4 py-4 transition hover:bg-[var(--surface-container-lowest)]"
               key={chat.id}
               to={`/echoes/chat/${chat.id}`}
+              state={{ fromSection: "echoes" }}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -31,8 +35,13 @@ export function EchoesPage() {
         </section>
 
         <section className="mt-10 bg-[var(--surface-container)] p-5">
-          <h3 className="font-headline text-2xl">书信偏好</h3>
-          <p className="mt-3 text-sm text-[var(--on-surface-variant)]">你偏好慢速、长文本、可停顿的表达。系统会优先推荐同类型交流对象。</p>
+          <h3 className="font-headline text-2xl">{tx("书信偏好", "Conversation Preference")}</h3>
+          <p className="mt-3 text-sm text-[var(--on-surface-variant)]">
+            {tx(
+              "你偏好慢速、长文本、可停顿的表达。系统会优先推荐同类型交流对象。",
+              "You prefer slow and long-form messages. Similar communication styles are prioritized.",
+            )}
+          </p>
         </section>
       </main>
       <BottomNav />

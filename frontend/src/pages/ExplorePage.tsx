@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useLanguage } from "../app/language";
 import { BottomNav, TopBar } from "../components/ui/AppChrome";
 import { InkstoneTextarea } from "../components/ui/InkstoneTextarea";
 import { SealButton } from "../components/ui/SealButton";
@@ -8,6 +9,7 @@ import { ZenLoader } from "../components/ui/ZenLoader";
 import { getMatchJob, runMatch } from "../lib/api/client";
 
 export function ExplorePage() {
+  const { tx } = useLanguage();
   const navigate = useNavigate();
   const [prompt, setPrompt] = useState("");
   const [jobId, setJobId] = useState<string | null>(null);
@@ -38,7 +40,7 @@ export function ExplorePage() {
 
   return (
     <div className="min-h-[100dvh] bg-[var(--surface)] pb-32">
-      <TopBar title="寻梅" />
+      <TopBar title={tx("寻梅", "Seeking Plum")} />
 
       <main className="mx-auto flex w-full max-w-screen-xl flex-col items-center px-5 pb-36 pt-28 md:px-8 md:pt-32">
         <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
@@ -49,16 +51,16 @@ export function ExplorePage() {
         <section className="w-full max-w-3xl">
           <div className="mb-14 text-center">
             <h2 className="font-headline text-5xl font-light tracking-tight text-[var(--on-surface)] md:text-7xl">
-              寻一位同频之人
+              {tx("寻一位同频之人", "Find Resonance")}
             </h2>
             <p className="mt-4 text-[11px] font-medium tracking-[0.28em] text-[var(--primary)]/65">
-              以心念为引，向人海寻梅
+              {tx("以心念为引，向人海寻梅", "Search by your current intention")}
             </p>
           </div>
 
           <div className="group relative">
             <InkstoneTextarea
-              placeholder="写下你此刻的心念..."
+              placeholder={tx("写下你此刻的心念...", "Write your current intention...")}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
             />
@@ -67,11 +69,13 @@ export function ExplorePage() {
 
           <div className="mt-8 flex items-center justify-between gap-5">
             <div className="flex gap-6 text-[10px] tracking-[0.18em] text-[var(--on-surface)]/45">
-              <button type="button">细化条件</button>
-              <Link to="/explore-archive">文库视图</Link>
+              <button type="button">{tx("细化条件", "Refine")}</button>
+              <Link to="/explore-archive" state={{ fromSection: "explore" }}>
+                {tx("文库视图", "Archive")}
+              </Link>
             </div>
             <SealButton onClick={() => runMutation.mutate({ prompt })} disabled={!prompt.trim() || isBusy}>
-              开始寻觅
+              {tx("开始寻觅", "Seek")}
             </SealButton>
           </div>
         </section>
@@ -88,19 +92,29 @@ export function ExplorePage() {
               <button
                 key={item.profileId}
                 className="flex w-full items-center justify-between bg-[var(--surface-container-low)] px-5 py-4 text-left transition hover:bg-[var(--surface-container-lowest)]"
-                onClick={() => navigate(`/match/${item.profileId}?prompt=${encodeURIComponent(prompt)}`)}
+                onClick={() =>
+                  navigate(`/match/${item.profileId}?prompt=${encodeURIComponent(prompt)}`, {
+                    state: { fromSection: "explore" },
+                  })
+                }
               >
                 <div>
                   <p className="font-headline text-xl">{item.reasonShort}</p>
-                  <p className="text-[11px] tracking-[0.15em] text-[var(--on-surface-variant)]">候选对象</p>
+                  <p className="text-[11px] tracking-[0.15em] text-[var(--on-surface-variant)]">{tx("候选对象", "Candidate")}</p>
                 </div>
                 <span className="font-headline text-4xl text-[var(--primary)]">{item.score}%</span>
               </button>
             ))}
             {first && (
               <div className="pt-2 text-right">
-                <SealButton onClick={() => navigate(`/match-gallery/${first.profileId}?prompt=${encodeURIComponent(prompt)}`)}>
-                  查看展卷式详情
+                <SealButton
+                  onClick={() =>
+                    navigate(`/match-gallery/${first.profileId}?prompt=${encodeURIComponent(prompt)}`, {
+                      state: { fromSection: "explore" },
+                    })
+                  }
+                >
+                  {tx("查看展卷式详情", "Open Gallery Detail")}
                 </SealButton>
               </div>
             )}
@@ -109,21 +123,21 @@ export function ExplorePage() {
 
         <section className="mt-20 grid w-full max-w-3xl grid-cols-1 gap-4 md:grid-cols-3">
           <article className="bg-[var(--surface-container-low)] p-6 transition hover:bg-[var(--surface-container-lowest)]">
-            <h3 className="font-headline text-2xl">诗性原型</h3>
+            <h3 className="font-headline text-2xl">{tx("诗性原型", "Poetic Archetypes")}</h3>
             <p className="mt-3 text-[11px] tracking-[0.12em] text-[var(--on-surface-variant)]">
-              按气质与文字偏好探索同频的人。
+              {tx("按气质与文字偏好探索同频的人。", "Explore people by temperament and writing style.")}
             </p>
           </article>
           <article className="bg-[var(--surface-container-low)] p-6 transition hover:bg-[var(--surface-container-lowest)]">
-            <h3 className="font-headline text-2xl">山水语境</h3>
+            <h3 className="font-headline text-2xl">{tx("山水语境", "Serene Domains")}</h3>
             <p className="mt-3 text-[11px] tracking-[0.12em] text-[var(--on-surface-variant)]">
-              通过共同的场景偏好建立连接。
+              {tx("通过共同的场景偏好建立连接。", "Connect through shared spaces and quiet scenes.")}
             </p>
           </article>
           <article className="bg-[var(--surface-container-low)] p-6 transition hover:bg-[var(--surface-container-lowest)]">
-            <h3 className="font-headline text-2xl">墨韵同好</h3>
+            <h3 className="font-headline text-2xl">{tx("墨韵同好", "Ink Affinities")}</h3>
             <p className="mt-3 text-[11px] tracking-[0.12em] text-[var(--on-surface-variant)]">
-              寻找与你笔触和节奏相近的人。
+              {tx("寻找与你笔触和节奏相近的人。", "Find people with similar rhythm and taste.")}
             </p>
           </article>
         </section>

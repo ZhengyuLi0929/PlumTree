@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { type ReactNode } from "react";
+import { useLanguage } from "../../app/language";
 
 type TopBarProps = {
   title?: string;
@@ -10,10 +11,17 @@ type TopBarProps = {
 };
 
 const tabs = [
-  { to: "/explore", label: "探索", icon: "explore" },
-  { to: "/echoes", label: "回响", icon: "auto_awesome" },
-  { to: "/profile", label: "我", icon: "person" },
+  { to: "/explore", labelZh: "探索", labelEn: "Explore", icon: "explore" },
+  { to: "/echoes", labelZh: "回响", labelEn: "Echoes", icon: "auto_awesome" },
+  { to: "/profile", labelZh: "我", labelEn: "Profile", icon: "person" },
 ];
+
+function getSection(pathname: string): "explore" | "echoes" | "profile" | null {
+  if (pathname.startsWith("/explore") || pathname.startsWith("/match")) return "explore";
+  if (pathname.startsWith("/echoes")) return "echoes";
+  if (pathname.startsWith("/profile")) return "profile";
+  return null;
+}
 
 function AppLogoMini() {
   return (
@@ -26,21 +34,34 @@ function AppLogoMini() {
 }
 
 export function TopBar({ title = "寻梅", subtitle, leftIcon = "arrow_back", rightSlot, onLeftClick }: TopBarProps) {
+  const { tx } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
+  const section = getSection(location.pathname);
+  const isSectionRoot =
+    location.pathname === "/explore" || location.pathname === "/echoes" || location.pathname === "/profile";
+  const fromSection = (location.state as { fromSection?: string } | null)?.fromSection;
+  const canBackInSection = Boolean(section && !isSectionRoot && fromSection === section);
+  const effectiveIcon = canBackInSection ? leftIcon : "menu";
 
   const handleBack = () => {
     if (onLeftClick) {
       onLeftClick();
       return;
     }
-    navigate(-1);
+    if (canBackInSection) navigate(-1);
   };
 
   return (
     <header className="fixed inset-x-0 top-0 z-40 bg-[var(--surface)]/95 px-4 py-4 backdrop-blur md:px-8 md:py-6">
       <div className="mx-auto flex w-full max-w-screen-xl items-center justify-between">
-        <button className="material-symbols-outlined p-1 text-[var(--primary)]" onClick={handleBack} type="button" aria-label="返回">
-          {leftIcon}
+        <button
+          className={`material-symbols-outlined p-1 text-[var(--primary)] ${!canBackInSection ? "opacity-70" : ""}`}
+          onClick={handleBack}
+          type="button"
+          aria-label={tx("返回", "Back")}
+        >
+          {effectiveIcon}
         </button>
         <div className="text-center">
           <h1 className="font-headline text-2xl font-light tracking-tight text-[var(--primary)] md:text-3xl">{title}</h1>
@@ -55,6 +76,7 @@ export function TopBar({ title = "寻梅", subtitle, leftIcon = "arrow_back", ri
 
 export function BottomNav() {
   const location = useLocation();
+  const { tx } = useLanguage();
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto flex w-full max-w-md items-center justify-around border-t border-[color:rgba(57,101,111,0.12)] bg-[color:rgba(255,255,255,0.66)] px-6 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur md:bottom-6 md:w-[92%] md:rounded-none">
@@ -69,7 +91,7 @@ export function BottomNav() {
             to={tab.to}
           >
             <span className="material-symbols-outlined text-[20px]">{tab.icon}</span>
-            <span className="text-[10px] uppercase tracking-[0.16em]">{tab.label}</span>
+            <span className="text-[10px] tracking-[0.16em]">{tx(tab.labelZh, tab.labelEn)}</span>
           </Link>
         );
       })}

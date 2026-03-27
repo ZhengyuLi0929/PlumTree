@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useLanguage } from "../app/language";
 import { BottomNav, TopBar } from "../components/ui/AppChrome";
 import { InkstoneTextarea } from "../components/ui/InkstoneTextarea";
 import { SealButton } from "../components/ui/SealButton";
 import { getMyProfile, upsertMyProfile } from "../lib/api/client";
 
 export function ProfilePage() {
+  const { lang, setLang, tx } = useLanguage();
   const queryClient = useQueryClient();
   const profileQuery = useQuery({ queryKey: ["my-profile"], queryFn: getMyProfile });
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -69,19 +71,19 @@ export function ProfilePage() {
 
   return (
     <div className="min-h-[100dvh] bg-[var(--surface)] pb-32">
-      <TopBar title="我的资料" />
+      <TopBar title={tx("我的资料", "My Profile")} />
 
       <main className="mx-auto max-w-2xl px-5 pb-36 pt-28 md:px-8 md:pt-32">
         <section className="mt-4 flex flex-col items-center text-center">
           <div className="relative mb-6">
             <div className="h-40 w-40 overflow-hidden border border-[var(--primary)]/12 p-1">
-              <img alt="用户头像" className="h-full w-full object-cover" src={form.avatar || data?.avatar} />
+              <img alt={tx("用户头像", "User Avatar")} className="h-full w-full object-cover" src={form.avatar || data?.avatar} />
             </div>
             <button
               className="absolute -bottom-2 -right-2 bg-[var(--primary)] p-2 text-white"
               onClick={onPickAvatar}
               type="button"
-              aria-label="编辑头像"
+              aria-label={tx("编辑头像", "Edit Avatar")}
             >
               <span className="material-symbols-outlined text-sm">edit</span>
             </button>
@@ -108,7 +110,7 @@ export function ProfilePage() {
 
           <article className="grid grid-cols-1 gap-4 bg-[var(--surface-container-low)] p-5">
             <label className="text-xs text-[var(--on-surface-variant)]">
-              昵称
+              {tx("昵称", "Display Name")}
               <input
                 className="mt-1 w-full border border-[var(--outline-variant)]/40 bg-[var(--surface-container-lowest)] px-3 py-2 outline-none disabled:opacity-70"
                 disabled={!isEditing}
@@ -117,7 +119,7 @@ export function ProfilePage() {
               />
             </label>
             <label className="text-xs text-[var(--on-surface-variant)]">
-              职业 / 身份
+              {tx("职业 / 身份", "Calling")}
               <input
                 className="mt-1 w-full border border-[var(--outline-variant)]/40 bg-[var(--surface-container-lowest)] px-3 py-2 outline-none disabled:opacity-70"
                 disabled={!isEditing}
@@ -126,7 +128,7 @@ export function ProfilePage() {
               />
             </label>
             <label className="text-xs text-[var(--on-surface-variant)]">
-              城市
+              {tx("城市", "City")}
               <input
                 className="mt-1 w-full border border-[var(--outline-variant)]/40 bg-[var(--surface-container-lowest)] px-3 py-2 outline-none disabled:opacity-70"
                 disabled={!isEditing}
@@ -135,7 +137,7 @@ export function ProfilePage() {
               />
             </label>
             <label className="text-xs text-[var(--on-surface-variant)]">
-              兴趣（用顿号或逗号分隔）
+              {tx("兴趣（用顿号或逗号分隔）", "Interests (comma separated)")}
               <input
                 className="mt-1 w-full border border-[var(--outline-variant)]/40 bg-[var(--surface-container-lowest)] px-3 py-2 outline-none disabled:opacity-70"
                 disabled={!isEditing}
@@ -147,7 +149,7 @@ export function ProfilePage() {
 
           <article className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <div className="bg-[var(--surface-container)] p-5">
-              <h4 className="font-headline text-2xl text-[var(--primary)]">雅兴</h4>
+              <h4 className="font-headline text-2xl text-[var(--primary)]">{tx("雅兴", "Interests")}</h4>
               <ul className="mt-4 space-y-2 text-sm text-[var(--on-surface-variant)]">
                 {(form.interests ? form.interests.split(/[、,，]/g) : data?.interests ?? []).map((interest) => (
                   <li key={interest} className="flex items-center gap-2">
@@ -158,17 +160,29 @@ export function ProfilePage() {
               </ul>
             </div>
             <div className="bg-[var(--surface-container)] p-5 text-center">
-              <h4 className="font-headline text-2xl text-[var(--primary)]">居所</h4>
+              <h4 className="font-headline text-2xl text-[var(--primary)]">{tx("居所", "Sanctuary")}</h4>
               <p className="mt-8 font-headline text-3xl">{form.city || data?.city}</p>
+            </div>
+          </article>
+
+          <article className="bg-[var(--surface-container)] p-5">
+            <h4 className="font-headline text-2xl text-[var(--primary)]">{tx("语言设置", "Language")}</h4>
+            <div className="mt-4 flex gap-3">
+              <SealButton variant={lang === "zh" ? "primary" : "ghost"} onClick={() => setLang("zh")}>
+                中文
+              </SealButton>
+              <SealButton variant={lang === "en" ? "primary" : "ghost"} onClick={() => setLang("en")}>
+                English
+              </SealButton>
             </div>
           </article>
 
           <div className="flex flex-wrap justify-center gap-3">
             {!isEditing ? (
-              <SealButton onClick={() => setIsEditing(true)}>编辑资料</SealButton>
+              <SealButton onClick={() => setIsEditing(true)}>{tx("编辑资料", "Edit Profile")}</SealButton>
             ) : (
               <SealButton onClick={onSave} disabled={!form.bio.trim() || saveMutation.isPending}>
-                保存
+                {tx("保存", "Save")}
               </SealButton>
             )}
             <SealButton
@@ -186,7 +200,7 @@ export function ProfilePage() {
                 });
               }}
             >
-              取消
+              {tx("取消", "Cancel")}
             </SealButton>
           </div>
         </section>
