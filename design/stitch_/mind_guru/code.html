@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Seeking Plum | 心念 Mind's Echo</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "secondary": "#566063",
+              "on-surface": "#191c1d",
+              "surface-container-low": "#f2f4f5",
+              "surface-bright": "#f8fafb",
+              "surface-container-lowest": "#ffffff",
+              "on-secondary-fixed-variant": "#3f484b",
+              "surface-dim": "#d8dadb",
+              "on-error-container": "#93000a",
+              "inverse-surface": "#2e3132",
+              "tertiary-fixed-dim": "#bec8cd",
+              "on-surface-variant": "#41484a",
+              "surface-tint": "#39656f",
+              "on-secondary-container": "#5a6467",
+              "secondary-fixed": "#dae4e7",
+              "on-tertiary-fixed-variant": "#3f484c",
+              "outline-variant": "#c0c8ca",
+              "on-secondary-fixed": "#141d1f",
+              "on-secondary": "#ffffff",
+              "on-tertiary-fixed": "#141d21",
+              "on-primary-container": "#34606a",
+              "primary-fixed-dim": "#a1ceda",
+              "background": "#f8fafb",
+              "on-tertiary-container": "#525b5f",
+              "on-error": "#ffffff",
+              "on-primary-fixed-variant": "#1f4d57",
+              "primary": "#39656f",
+              "on-primary": "#ffffff",
+              "on-tertiary": "#ffffff",
+              "outline": "#71787b",
+              "on-primary-fixed": "#001f26",
+              "secondary-container": "#d7e1e4",
+              "inverse-on-surface": "#eff1f2",
+              "error": "#ba1a1a",
+              "surface-container-highest": "#e1e3e4",
+              "surface-container": "#eceeef",
+              "primary-fixed": "#bdeaf6",
+              "inverse-primary": "#a1ceda",
+              "surface-container-high": "#e6e8e9",
+              "on-background": "#191c1d",
+              "error-container": "#ffdad6",
+              "surface-variant": "#e1e3e4",
+              "surface": "#f8fafb",
+              "tertiary-container": "#cad3d8",
+              "primary-container": "#acd9e5",
+              "tertiary": "#576064",
+              "tertiary-fixed": "#dbe4e9",
+              "secondary-fixed-dim": "#bec8cb"
+            },
+            fontFamily: {
+              "headline": ["Newsreader", "serif"],
+              "body": ["Manrope", "sans-serif"],
+              "label": ["Manrope", "sans-serif"],
+              "newsreader": ["Newsreader", "serif"],
+              "manrope": ["Manrope", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0px", "lg": "0px", "xl": "0px", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        .ink-wash-gradient {
+            background: linear-gradient(180deg, #f8fafb 0%, #eceeef 100%);
+        }
+        .glass-nav {
+            background: rgba(248, 250, 251, 0.8);
+            backdrop-filter: blur(20px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body selection:bg-primary-container selection:text-on-primary-container overflow-hidden">
+<!-- TopAppBar -->
+<header class="w-full top-0 z-50 bg-gradient-to-b from-[#eceeef] to-[#f8fafb] flex justify-between items-center px-8 py-6 fixed">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-[#39656f] cursor-pointer" data-icon="menu">menu</span>
+<h1 class="font-newsreader italic text-[#39656f] tracking-tight text-2xl font-light">Seeking Plum 寻梅</h1>
+</div>
+<div class="flex items-center gap-6">
+<span class="font-manrope uppercase tracking-widest text-[10px] font-semibold text-[#39656f]/60">心念 | Mind's Echo</span>
+<span class="material-symbols-outlined text-[#39656f]" data-icon="settings">settings</span>
+</div>
+</header>
+<div class="flex h-screen pt-[88px]">
+<!-- NavigationDrawer -->
+<aside class="hidden md:flex fixed inset-y-0 left-0 flex-col p-10 h-full w-80 bg-[#eceeef] border-r border-[#39656f]/10 shadow-[40px_0_40px_-20px_rgba(57,101,111,0.04)] z-40 mt-[88px]">
+<div class="mb-12">
+<h2 class="font-newsreader text-xl text-[#191c1d]">Archives | 卷轴</h2>
+</div>
+<nav class="space-y-4">
+<div class="group flex items-center gap-4 p-4 text-[#39656f] border-l-2 border-[#39656f] bg-[#ffffff]/50 transition-all duration-300 translate-x-1 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="chat_bubble_outline">chat_bubble_outline</span>
+<span class="font-manrope uppercase tracking-widest text-xs font-semibold">Current Echoes</span>
+</div>
+<div class="group flex items-center gap-4 p-4 text-[#191c1d]/40 hover:text-[#191c1d] hover:bg-[#f2f4f5] transition-all duration-300 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="history_edu">history_edu</span>
+<span class="font-manrope uppercase tracking-widest text-xs font-semibold">Past Silences</span>
+</div>
+<div class="group flex items-center gap-4 p-4 text-[#191c1d]/40 hover:text-[#191c1d] hover:bg-[#f2f4f5] transition-all duration-300 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="auto_stories">auto_stories</span>
+<span class="font-manrope uppercase tracking-widest text-xs font-semibold">Scholarly Archives</span>
+</div>
+<div class="group flex items-center gap-4 p-4 text-[#191c1d]/40 hover:text-[#191c1d] hover:bg-[#f2f4f5] transition-all duration-300 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-manrope uppercase tracking-widest text-xs font-semibold">Ritual Settings</span>
+</div>
+</nav>
+<div class="mt-auto pt-10 opacity-30">
+<div class="w-full aspect-square bg-surface-container-highest flex items-center justify-center">
+<img alt="Plum Blossom" class="w-24 h-24 grayscale mix-blend-multiply" data-alt="minimalist ink wash painting of a single plum blossom branch in a misty landscape with vast negative space" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXQy-2pDuW0EvXUD0roRy1mNjHCUfi1nTTsPLwKXVSkxjEezgKDgTw4ZnhMTipqxfFjmnl5VgsnBzqKeEG2GSmacIFlmQ9VB_omrpc7ngXZjQ6ptpyJCoGYY2ev-spEGYpV9BJPUP2VU3uNLb49dOdJwvCXHAWFqQorhDTdtoWn_pOmGbq8NJzSa1QWoLRXWvkH0hWz2pc78UpxC683JUpw-8WWFKIUNrMWzA5DYnePMT0XuamuWP9eUiFIC70gIt7uOd8yTrj7LQ"/>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 md:ml-80 flex flex-col relative bg-surface-bright overflow-y-auto pb-32">
+<!-- Content Header Spacer -->
+<div class="h-16 w-full"></div>
+<div class="max-w-3xl mx-auto w-full px-8 lg:px-0 space-y-20 py-12">
+<!-- Dialogue Turn 1: User -->
+<div class="flex flex-col items-end space-y-4">
+<div class="text-right">
+<span class="font-manrope uppercase tracking-[0.2em] text-[10px] text-primary/40">落笔 | The Scribe</span>
+</div>
+<div class="bg-surface-container-lowest p-8 max-w-[85%] border-b border-primary/10">
+<p class="font-newsreader text-lg text-on-surface leading-relaxed italic">
+                            How does one capture the essence of silence in a world of constant motion?
+                            <span class="block mt-2 text-sm not-italic opacity-60">在这纷扰世间，如何捕捉那一抹寂静的真意？</span>
+</p>
+</div>
+</div>
+<!-- Dialogue Turn 2: AI (Mind's Echo) -->
+<div class="flex flex-col items-start space-y-6">
+<div class="text-left flex items-center gap-3">
+<span class="w-2 h-2 bg-primary"></span>
+<span class="font-manrope uppercase tracking-[0.2em] text-[10px] text-primary">心念 | Mind's Echo</span>
+</div>
+<div class="space-y-8 max-w-[90%]">
+<p class="font-newsreader text-3xl text-on-surface leading-[1.4] font-light">
+                            Silence is not the absence of sound, but the presence of <span class="text-primary italic">clarity</span>. Like the mist upon the West Lake, it does not hide the water, but reveals its depth through what is left unsaid.
+                        </p>
+<p class="font-newsreader text-xl text-primary/80 italic leading-relaxed">
+                            静非无声，乃心之澄澈。如西湖之烟雨，非为遮掩，实乃以虚而见其深，言有尽而意无穷。
+                        </p>
+<div class="pt-4 border-t border-outline-variant/20 flex gap-8">
+<div class="text-[10px] font-manrope uppercase tracking-widest text-on-surface/40 flex items-center gap-2">
+<span class="material-symbols-outlined text-xs" data-icon="brush">brush</span> Ink Trace
+                            </div>
+<div class="text-[10px] font-manrope uppercase tracking-widest text-on-surface/40 flex items-center gap-2">
+<span class="material-symbols-outlined text-xs" data-icon="share">share</span> Disperse
+                            </div>
+</div>
+</div>
+</div>
+<!-- Dialogue Turn 3: User -->
+<div class="flex flex-col items-end space-y-4">
+<div class="text-right">
+<span class="font-manrope uppercase tracking-[0.2em] text-[10px] text-primary/40">落笔 | The Scribe</span>
+</div>
+<div class="bg-surface-container-lowest p-8 max-w-[85%] border-b border-primary/10">
+<p class="font-newsreader text-lg text-on-surface leading-relaxed italic">
+                            Then let us speak of the 'Ink &amp; Wash Ritual'. How can the stroke of a brush become a meditation?
+                            <span class="block mt-2 text-sm not-italic opacity-60">那便谈谈“水墨仪式”吧。笔触之下，如何化为一种冥想？</span>
+</p>
+</div>
+</div>
+<!-- Dialogue Turn 4: AI (In progress/Poetic) -->
+<div class="flex flex-col items-start space-y-6 pb-20">
+<div class="text-left flex items-center gap-3">
+<span class="w-2 h-2 bg-primary"></span>
+<span class="font-manrope uppercase tracking-[0.2em] text-[10px] text-primary">心念 | Mind's Echo</span>
+</div>
+<div class="space-y-12">
+<div class="flex gap-1">
+<div class="w-1 h-1 bg-primary rounded-full animate-pulse"></div>
+<div class="w-1 h-1 bg-primary rounded-full animate-pulse" style="animation-delay: 0.2s"></div>
+<div class="w-1 h-1 bg-primary rounded-full animate-pulse" style="animation-delay: 0.4s"></div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="aspect-[3/4] bg-surface-container relative overflow-hidden group">
+<img alt="Ink Meditation" class="w-full h-full object-cover grayscale opacity-60 mix-blend-multiply group-hover:scale-105 transition-transform duration-1000" data-alt="extreme close-up of dark ink spreading through water on white paper creating organic flowing shapes like mountains" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZVlkxCAsF9V18B6g7sL0sV81QhTc2X9Bn8duZtluFQ-x4VIG2PbRf1HbysGxMsADeSYkjgUpcaWwOy9UfzKtjB4MGr1bzYoR9uetGnyWMJzyeupnY6aorY8cbGYf5F1XMt2_ecF8A-OM5WQHnGCiudQfWNW80BfqK2Nj_upoWHiGTOrDpPkk2Nmpxujlz8-tDajakTEZOAEIIFITKrnUiBE3w-cr8zT5yHCSusYuXLUktvfPTisE-oh0rXVjDlWxXZZALIRgMC9o"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-bright/80 to-transparent"></div>
+<div class="absolute bottom-6 left-6">
+<span class="font-manrope text-[10px] uppercase tracking-widest text-primary">Artifact I | 笔墨其一</span>
+</div>
+</div>
+<div class="flex flex-col justify-center space-y-6">
+<p class="font-newsreader text-2xl leading-relaxed italic text-on-surface">
+                                    "The brush does not lead the hand; the breath leads the brush."
+                                </p>
+<p class="font-manrope text-xs leading-relaxed text-on-surface/60">
+                                    Consider the weight of the water. Meditation begins the moment the ink stone meets the first drop. It is a dialogue between the rigid charcoal and the fluid soul.
+                                </p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Input Area (Minimalist Inscribe) -->
+<div class="fixed bottom-0 left-0 md:left-80 right-0 z-40 p-8 bg-gradient-to-t from-background via-background to-transparent">
+<div class="max-w-3xl mx-auto">
+<div class="relative flex items-center bg-surface-container-lowest border-b border-primary/20 focus-within:border-primary transition-colors duration-500 py-4 px-2">
+<span class="material-symbols-outlined text-primary/40 mr-4" data-icon="edit_note">edit_note</span>
+<input class="w-full bg-transparent border-none focus:ring-0 font-newsreader text-xl italic text-on-surface placeholder:text-on-surface/20" placeholder="落笔 | Inscribe your thought..." type="text"/>
+<button class="bg-primary text-on-primary px-6 py-2 font-manrope uppercase tracking-widest text-[10px] font-bold hover:bg-primary-fixed-dim transition-colors">
+                        Emit | 散
+                    </button>
+</div>
+</div>
+</div>
+<!-- BottomNavBar (Mobile only) -->
+<footer class="md:hidden fixed bottom-0 w-full z-50 flex justify-around items-center h-20 px-12 bg-[#f8fafb]/80 backdrop-blur-xl bg-gradient-to-t from-[#eceeef] to-transparent">
+<div class="text-[#191c1d]/30 flex flex-col items-center">
+<span class="material-symbols-outlined" data-icon="tempest">storm</span>
+</div>
+<div class="text-[#39656f] scale-110 flex flex-col items-center">
+<span class="material-symbols-outlined" data-icon="Self_improvement" style="font-variation-settings: 'FILL' 1;">self_improvement</span>
+</div>
+<div class="text-[#191c1d]/30 flex flex-col items-center">
+<span class="material-symbols-outlined" data-icon="menu_book">menu_book</span>
+</div>
+</footer>
+</div>
+</body></html>
