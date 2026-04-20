@@ -26,51 +26,89 @@ export function MindPage() {
     <div className="min-h-[100dvh] overflow-hidden bg-[var(--surface)]">
       <TopBar title={tx("寻梅", "Seeking Plum")} subtitle={tx("心念", "Mind's Echo")} />
 
-      <main className="mx-auto h-[100dvh] max-w-3xl overflow-y-auto px-5 pb-44 pt-28">
-        <div className="space-y-10">
-          {blocks.map((block, idx) => (
-            <section className={`flex flex-col ${block.role === "user" ? "items-end" : "items-start"}`} key={idx}>
-              <div className="mb-3 text-[10px] tracking-[0.2em] text-[var(--primary)]/70">
-                {block.role === "user" ? tx("落笔", "The Scribe") : tx("心念", "Mind's Echo")}
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-[var(--surface-container)] to-transparent" />
+      </div>
+
+      <div className="flex h-[100dvh] pt-24">
+        <aside className="hidden h-full w-72 flex-col border-r border-[var(--primary)]/10 bg-[var(--surface-container)]/75 px-6 py-8 md:flex">
+          <h2 className="font-headline text-3xl text-[var(--on-surface)]">{tx("卷轴", "Archives")}</h2>
+          <nav className="mt-8 space-y-2">
+            <button className="flex w-full items-center gap-3 border-l-2 border-[var(--primary)] bg-[var(--surface-container-lowest)] px-3 py-3 text-left text-[10px] tracking-[0.15em] text-[var(--primary)]">
+              <span className="material-symbols-outlined text-base">chat_bubble_outline</span>
+              {tx("当前回响", "Current Echoes")}
+            </button>
+            <button className="flex w-full items-center gap-3 px-3 py-3 text-left text-[10px] tracking-[0.15em] text-[var(--on-surface-variant)]/65">
+              <span className="material-symbols-outlined text-base">history_edu</span>
+              {tx("过往留白", "Past Silences")}
+            </button>
+            <button className="flex w-full items-center gap-3 px-3 py-3 text-left text-[10px] tracking-[0.15em] text-[var(--on-surface-variant)]/65">
+              <span className="material-symbols-outlined text-base">auto_stories</span>
+              {tx("文心档案", "Scholarly Archives")}
+            </button>
+          </nav>
+        </aside>
+
+        <main className="mx-auto h-[100dvh] w-full max-w-4xl overflow-y-auto px-5 pb-44 pt-4 md:px-8">
+          <div className="space-y-12">
+            {blocks.map((block, idx) => (
+              <section className={`flex flex-col ${block.role === "user" ? "items-end" : "items-start"}`} key={idx}>
+                <div className="mb-3 text-[10px] tracking-[0.2em] text-[var(--primary)]/70">
+                  {block.role === "user" ? tx("落笔", "The Scribe") : tx("心念", "Mind's Echo")}
+                </div>
+                <div
+                  className={`max-w-[90%] border-b border-[var(--primary)]/12 p-6 md:p-8 ${
+                    block.role === "user" ? "bg-[var(--surface-container-lowest)]" : "bg-[var(--surface-container-low)]"
+                  }`}
+                >
+                  <p className={`font-headline ${block.role === "ai" ? "text-3xl" : "text-2xl"} italic leading-relaxed`}>
+                    {tx(block.zh, block.en)}
+                  </p>
+                </div>
+              </section>
+            ))}
+
+            <section className="space-y-6 pb-8">
+              <div className="flex items-center gap-2 text-[10px] tracking-[0.2em] text-[var(--primary)]">
+                <span className="h-2 w-2 bg-[var(--primary)]" />
+                {tx("心念", "Mind's Echo")}
               </div>
-              <div
-                className={`max-w-[90%] border-b border-[var(--primary)]/12 p-6 ${
-                  block.role === "user" ? "bg-[var(--surface-container-lowest)]" : "bg-[var(--surface-container-low)]"
-                }`}
-              >
-                <p className="font-headline text-2xl italic leading-relaxed">{tx(block.zh, block.en)}</p>
+
+              <div className="flex gap-1">
+                <span className="h-1.5 w-1.5 animate-pulse bg-[var(--primary)]" />
+                <span className="h-1.5 w-1.5 animate-pulse bg-[var(--primary)] [animation-delay:200ms]" />
+                <span className="h-1.5 w-1.5 animate-pulse bg-[var(--primary)] [animation-delay:400ms]" />
+              </div>
+
+              <div className="grid grid-cols-1 gap-8 md:grid-cols-[1fr_1.2fr]">
+                <div className="group relative aspect-[3/4] overflow-hidden bg-[var(--surface-container)]">
+                  <div className="absolute inset-0 bg-gradient-to-t from-[var(--surface)]/90 to-transparent" />
+                  <div className="absolute bottom-4 left-4 text-[10px] tracking-[0.16em] text-[var(--primary)]">
+                    {tx("笔墨其一", "Artifact I")}
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <p className="font-headline text-4xl italic leading-relaxed">
+                    {tx("“笔不领手，气领笔。”", '"The brush does not lead the hand; the breath leads the brush."')}
+                  </p>
+                  <p className="text-sm leading-relaxed text-[var(--on-surface-variant)]">
+                    {tx(
+                      "冥想始于砚台与第一滴水相遇之时。墨与水在宣纸上的游走，便是内在节奏的具象。",
+                      "Meditation begins when inkstone meets the first drop of water.",
+                    )}
+                  </p>
+                </div>
               </div>
             </section>
-          ))}
+          </div>
+        </main>
+      </div>
 
-          <section className="space-y-6 pb-8">
-            <div className="flex items-center gap-2 text-[10px] tracking-[0.2em] text-[var(--primary)]">
-              <span className="h-2 w-2 bg-[var(--primary)]" />
-              {tx("心念", "Mind's Echo")}
-            </div>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_1.2fr]">
-              <div className="aspect-[3/4] bg-[var(--surface-container)]" />
-              <div className="space-y-4">
-                <p className="font-headline text-3xl italic">
-                  {tx("“笔不领手，气领笔。”", '"The brush does not lead the hand; the breath leads the brush."')}
-                </p>
-                <p className="text-sm text-[var(--on-surface-variant)]">
-                  {tx(
-                    "冥想始于砚台与第一滴水相遇之时。墨与水在宣纸上的游走，便是内在节奏的具象。",
-                    "Meditation begins when inkstone meets the first drop of water.",
-                  )}
-                </p>
-              </div>
-            </div>
-          </section>
-        </div>
-      </main>
-
-      <section className="fixed inset-x-0 bottom-0 z-30 bg-gradient-to-t from-[var(--surface)] via-[var(--surface)] to-transparent px-5 pb-[calc(3.2rem+env(safe-area-inset-bottom))] pt-6">
+      <section className="fixed inset-x-0 bottom-0 z-30 bg-gradient-to-t from-[var(--surface)] via-[var(--surface)] to-transparent px-5 pb-[calc(2.9rem+env(safe-area-inset-bottom))] pt-6 md:pb-[calc(3.1rem+env(safe-area-inset-bottom))]">
         <div className="mx-auto flex max-w-3xl items-center gap-3 border-b border-[var(--primary)]/20 bg-[var(--surface-container-lowest)] px-2 py-3">
           <span className="material-symbols-outlined text-[var(--primary)]/45">edit_note</span>
           <input
-            className="w-full border-0 bg-transparent font-headline text-xl italic outline-none placeholder:text-[var(--on-surface)]/30"
+            className="w-full border-0 bg-transparent font-headline text-[1.25rem] italic outline-none placeholder:text-[var(--on-surface)]/30"
             placeholder={tx("落笔...", "Inscribe your thought...")}
           />
           <button className="bg-[var(--primary)] px-4 py-2 text-[10px] tracking-[0.2em] text-white" type="button">
