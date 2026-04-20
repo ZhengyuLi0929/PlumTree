@@ -15,18 +15,18 @@ export function EchoesPage() {
     <div className="min-h-[100dvh] bg-[var(--surface)] pb-32">
       <TopBar title={tx("回响", "Echoes")} subtitle={tx("与你同频的人", "People in your resonance")} />
       <main className="mx-auto max-w-2xl px-5 pb-36 pt-28">
-        <section className="space-y-4">
+        <section className="space-y-3">
           {chats.map((chat) => (
             <Link
-              className="block bg-[var(--surface-container-low)] px-4 py-4 transition hover:bg-[var(--surface-container-lowest)]"
+              className="block bg-[var(--surface-container-low)] px-4 py-5 transition hover:bg-[var(--surface-container-lowest)]"
               key={chat.id}
               to={`/echoes/chat/${chat.id}`}
               state={{ fromSection: "echoes" }}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="font-headline text-2xl">{chat.name}</p>
-                  <p className="mt-2 text-sm text-[var(--on-surface-variant)]">{chat.last}</p>
+                  <p className="font-headline text-[2rem] leading-none">{chat.name}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--on-surface-variant)]">{chat.last}</p>
                 </div>
                 <span className="text-[10px] text-[var(--on-surface-variant)]/70">{chat.time}</span>
               </div>
@@ -34,7 +34,7 @@ export function EchoesPage() {
           ))}
         </section>
 
-        <section className="mt-10 bg-[var(--surface-container)] p-5">
+        <section className="mt-10 bg-[var(--surface-container)] p-6">
           <h3 className="font-headline text-2xl">{tx("书信偏好", "Conversation Preference")}</h3>
           <p className="mt-3 text-sm text-[var(--on-surface-variant)]">
             {tx(

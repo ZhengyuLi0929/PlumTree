@@ -22,18 +22,22 @@ export function EchoChatPage() {
         {messages.map((item, idx) => (
           <article
             key={idx}
-            className={`max-w-[86%] ${
+            className={`max-w-[88%] ${
               item.role === "me" ? "ml-auto bg-[var(--primary)] text-white" : "bg-[var(--surface-container-low)] text-[var(--on-surface)]"
             } p-5`}
           >
-            {item.image && <div className="mb-3 h-40 w-full bg-[var(--surface-container)]" />}
+            {item.image && (
+              <div className="mb-3 bg-[var(--surface-container)] p-2">
+                <div className="h-44 w-full bg-[var(--surface-container-high)]" />
+              </div>
+            )}
             <p className={`text-[15px] leading-relaxed ${item.role === "me" ? "opacity-95" : "text-[var(--on-surface-variant)]"}`}>{item.text}</p>
             <p className={`mt-3 text-[9px] tracking-[0.17em] ${item.role === "me" ? "opacity-70" : "text-[var(--on-surface-variant)]/60"}`}>{item.time}</p>
           </article>
         ))}
       </main>
 
-      <section className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--outline-variant)]/30 bg-[var(--surface)]/92 px-5 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+      <section className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--outline-variant)]/30 bg-[var(--surface)]/92 px-5 pb-[calc(2.8rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-end gap-3">
           <button className="material-symbols-outlined text-[var(--on-surface-variant)]/55" type="button">
             add_circle
@@ -46,6 +50,13 @@ export function EchoChatPage() {
           <button className="material-symbols-outlined text-[var(--primary)]" type="button">
             send
           </button>
+        </div>
+        <div className="mx-auto mt-2 flex max-w-2xl items-center justify-between opacity-45">
+          <span className="text-[9px] tracking-[0.16em]">{tx("墨迹未干", "The ink is fresh")}</span>
+          <div className="flex gap-3">
+            <span className="material-symbols-outlined text-sm">auto_awesome</span>
+            <span className="material-symbols-outlined text-sm">ink_pen</span>
+          </div>
         </div>
       </section>
       <BottomNav />

@@ -76,7 +76,7 @@ export function ProfilePage() {
       <main className="mx-auto max-w-2xl px-5 pb-36 pt-28 md:px-8 md:pt-32">
         {!isEditing ? (
           <>
-            <section className="mt-10 flex flex-col items-center text-center">
+            <section className="mt-12 flex flex-col items-center text-center">
               <div className="relative mb-8">
                 <div className="h-40 w-40 border border-[var(--primary)]/15 bg-gradient-to-tr from-[var(--primary)]/15 to-transparent p-1">
                   <div className="h-full w-full overflow-hidden border border-[var(--primary)]/10">
@@ -88,7 +88,7 @@ export function ProfilePage() {
               <p className="mt-2 text-[10px] tracking-[0.3em] text-[var(--on-surface-variant)]/65">{form.calling || data?.calling}</p>
             </section>
 
-            <section className="mt-14 grid grid-cols-1 gap-10 md:grid-cols-2 md:gap-12">
+            <section className="mt-16 grid grid-cols-1 gap-10 md:grid-cols-2 md:gap-12">
               <article className="space-y-4 md:col-span-2">
                 <div className="flex items-baseline">
                   <h3 className="font-headline text-2xl text-[var(--primary)]">{tx("自述", "About Me")}</h3>
@@ -120,7 +120,7 @@ export function ProfilePage() {
               </article>
             </section>
 
-            <section className="mt-10 flex justify-center gap-4">
+            <section className="mt-12 flex justify-center gap-4">
               <SealButton onClick={onSave} disabled={saveMutation.isPending}>
                 {tx("保存", "Save")}
               </SealButton>

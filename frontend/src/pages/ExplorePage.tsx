@@ -46,10 +46,13 @@ export function ExplorePage() {
         <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
           <div className="absolute -right-24 top-1/4 h-80 w-80 rounded-full bg-[color:rgba(57,101,111,0.06)] blur-[120px]" />
           <div className="absolute -left-20 bottom-1/4 h-64 w-64 rounded-full bg-[color:rgba(86,96,99,0.05)] blur-[90px]" />
+          <div className="absolute bottom-24 right-4 hidden text-8xl text-[var(--primary)]/10 md:block" style={{ writingMode: "vertical-rl" }}>
+            寻梅
+          </div>
         </div>
 
         <section className="w-full max-w-3xl">
-          <div className="mb-14 text-center">
+          <div className="mb-16 text-center">
             <h2 className="font-headline text-5xl font-light tracking-tight text-[var(--on-surface)] md:text-7xl">
               {tx("寻一位同频之人", "Find Resonance")}
             </h2>
@@ -58,7 +61,7 @@ export function ExplorePage() {
             </p>
           </div>
 
-          <div className="group relative">
+          <div className="group relative bg-[var(--surface-container-lowest)] px-1 pt-1">
             <InkstoneTextarea
               placeholder={tx("写下你此刻的心念...", "Write your current intention...")}
               value={prompt}
@@ -67,7 +70,7 @@ export function ExplorePage() {
             <div className="absolute bottom-0 left-0 h-px w-full origin-center scale-x-0 bg-[var(--primary)] transition-transform duration-700 group-focus-within:scale-x-100" />
           </div>
 
-          <div className="mt-8 flex items-center justify-between gap-5">
+          <div className="mt-7 flex items-center justify-between gap-5 border-b border-[var(--outline-variant)]/20 bg-[var(--surface-container-low)]/35 px-3 py-4">
             <div className="flex gap-6 text-[10px] tracking-[0.18em] text-[var(--on-surface)]/45">
               <button type="button">{tx("细化条件", "Refine")}</button>
               <button onClick={() => navigate("/mind")} type="button">
@@ -87,11 +90,11 @@ export function ExplorePage() {
         )}
 
         {jobQuery.data?.status === "completed" && (
-          <section className="mt-12 w-full max-w-3xl space-y-4">
+          <section className="mt-12 w-full max-w-3xl space-y-3">
             {jobQuery.data.result.map((item) => (
               <button
                 key={item.profileId}
-                className="flex w-full items-center justify-between bg-[var(--surface-container-low)] px-5 py-4 text-left transition hover:bg-[var(--surface-container-lowest)]"
+                className="flex w-full items-center justify-between bg-[var(--surface-container-low)] px-5 py-5 text-left transition hover:bg-[var(--surface-container-lowest)]"
                 onClick={() =>
                   navigate(`/match/${item.profileId}?prompt=${encodeURIComponent(prompt)}`, {
                     state: { fromSection: "explore" },
@@ -99,7 +102,7 @@ export function ExplorePage() {
                 }
               >
                 <div>
-                  <p className="font-headline text-xl">{item.reasonShort}</p>
+                  <p className="font-headline text-2xl">{item.reasonShort}</p>
                   <p className="text-[11px] tracking-[0.15em] text-[var(--on-surface-variant)]">{tx("候选对象", "Candidate")}</p>
                 </div>
                 <span className="font-headline text-4xl text-[var(--primary)]">{item.score}%</span>
@@ -121,7 +124,7 @@ export function ExplorePage() {
           </section>
         )}
 
-        <section className="mt-20 grid w-full max-w-3xl grid-cols-1 gap-4 md:grid-cols-3">
+        <section className="mt-24 grid w-full max-w-3xl grid-cols-1 gap-4 md:grid-cols-3">
           <article className="bg-[var(--surface-container-low)] p-6 transition hover:bg-[var(--surface-container-lowest)]">
             <h3 className="font-headline text-2xl">{tx("诗性原型", "Poetic Archetypes")}</h3>
             <p className="mt-3 text-[11px] tracking-[0.12em] text-[var(--on-surface-variant)]">

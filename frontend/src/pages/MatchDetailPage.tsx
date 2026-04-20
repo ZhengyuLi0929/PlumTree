@@ -59,7 +59,7 @@ export function MatchDetailPage() {
       <PlumTransitionOverlay visible={isTransitioning} />
 
       <main className="mx-auto max-w-screen-xl px-5 pb-36 pt-24 md:px-10 md:pt-28">
-        <section className="mt-10 grid grid-cols-1 gap-8 md:grid-cols-[3fr_2fr] md:items-start">
+        <section className="mt-8 grid grid-cols-1 gap-10 md:grid-cols-[3fr_2fr] md:items-start">
           <div className="bg-[var(--surface-container)] p-3">
             <img alt={profile.displayName} className="h-[58vh] min-h-[360px] w-full object-cover" src={profile.avatar} />
           </div>
@@ -72,7 +72,7 @@ export function MatchDetailPage() {
               <span className="font-headline text-4xl">{profile.displayName}</span>
               <span className="text-[10px] tracking-[0.2em] text-[var(--on-surface-variant)]">{profile.city}</span>
             </div>
-            <p className="mt-4 text-[var(--on-surface-variant)]">{profile.bio}</p>
+            <p className="mt-5 text-[var(--on-surface-variant)]">{profile.bio}</p>
             <div className="mt-5 flex flex-wrap gap-2">
               {profile.interests.map((tag) => (
                 <span key={tag} className="border border-[var(--outline-variant)]/35 px-3 py-1 text-[10px] tracking-[0.15em]">
@@ -83,7 +83,7 @@ export function MatchDetailPage() {
           </div>
         </section>
 
-        <section className="mt-16 bg-[var(--surface-container-low)] p-8 text-center md:p-14">
+        <section className="mt-20 bg-[var(--surface-container-low)] p-8 text-center md:p-16">
           <h3 className="text-[11px] tracking-[0.3em] text-[var(--primary)]">{tx("契合度分析", "Compatibility Analysis")}</h3>
           <p className="font-headline text-[5.5rem] leading-none text-[var(--primary)] md:text-[8rem]">{score}%</p>
           <p className="font-headline text-2xl italic text-[var(--on-surface-variant)]">{tx("同频共振", "Resonant Frequency")}</p>
@@ -105,7 +105,7 @@ export function MatchDetailPage() {
           </div>
         </section>
 
-        <section className="mt-16 space-y-4">
+        <section className="mt-[4.5rem] space-y-4">
           <h3 className="font-headline text-4xl">{tx("本质画像", "Essence")}</h3>
           <ul className="space-y-2">
             {echo.essence.map((line) => (
