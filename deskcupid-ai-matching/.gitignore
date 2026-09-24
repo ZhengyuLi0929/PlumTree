@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+# data/ 含报名者姓名、微信号等个人信息，整体不入库（管道可重新生成）
+data/
+
+# 匹配结果报告含报名者个人信息，不入库
+LOCAL_AND_GLOBAL.md
+DeskCupid-matches.html
