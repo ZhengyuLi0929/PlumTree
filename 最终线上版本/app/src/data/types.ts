@@ -41,7 +41,7 @@ export const TYPES: Record<string, LoveType> = {
     persona: '你向往命中注定式的爱情，爱起来黏人又深情，但你表达不满的方式是沉默——像天鹅游向湖心，用距离代替争吵。你的浪漫很满，你的委屈很静，懂你的人要会读水面的波纹。',
     strengths: ['对爱情有信仰级的忠诚和想象', '优雅自持，从不让场面难堪', '深情且长情，认定了就是一生'],
     blindspots: ['冷战时对方常常不知道你为什么生气', '把"他应该懂"当成默认设置，容易积累误会', '对"命中注定的完美爱情"的期待，会让现实显得失色'],
-    matchCode: 'FSPC', matchLine: '官配：傲娇小鹿 —— 同样信命定、同样安静，湖心与林间遥遥相望',
+    matchCode: 'FSRH', matchLine: '官配：纯爱战士 —— 你习惯用沉默代替争吵，TA 有火当场发；TA 的热烈，刚好把你从湖心焐热',
   },
   FSPH: {
     code: 'FSPH', animal: '骏马', alias: '热恋行动派', meme: { m: '爹系恋人', f: '妈系恋人' }, avatar: '/avatars/FSPH.png',
@@ -73,7 +73,7 @@ export const TYPES: Record<string, LoveType> = {
     persona: '你的爱情是南极式的：一旦认定，就在极寒里紧紧挨着，用体温互相取暖。你不追求烟花般的开场，相信长情是熬出来的。有矛盾时你习惯自己安静消化——像企鹅在风雪里低头站稳，等风暴过去。',
     strengths: ['忠诚度和稳定性全场最高', '浪漫走心不烧钱，一颗石头就是定情信物', '共患难能力极强，越难的环境越黏'],
     blindspots: ['把委屈咽进肚子里，容易内伤', '太安静，伴侣可能误以为你不在乎', '对"热闹开场"的感情本能不信任，可能错过火花'],
-    matchCode: 'FGPC', matchLine: '官配：忠犬 —— 你在风雪中安静守候，TA 在家门口忠诚站岗，都是不说话的深情',
+    matchCode: 'FGRH', matchLine: '官配：贴贴怪 —— 一个安静消化，一个温和直说，两只恒温动物把日子过成同一个温度',
   },
   FGPH: {
     code: 'FGPH', animal: '蜜蜂', alias: '勤劳筑巢者', meme: { m: '人夫感', f: '人妻感' }, avatar: '/avatars/FGPH.png',

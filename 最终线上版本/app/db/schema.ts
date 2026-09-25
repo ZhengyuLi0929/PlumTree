@@ -61,6 +61,15 @@ export const profiles = mysqlTable("profiles", {
   gradClass: varchar("grad_class", { length: 64 }).notNull(),
   mbti: varchar("mbti", { length: 8 }),
   height: int("height"),
+  /** 职业/行业 */
+  job: varchar("job", { length: 64 }),
+  /** 结构化雷区：期望对方最低身高（cm） */
+  prefMinHeight: int("pref_min_height"),
+  /** 结构化雷区：期望对方出生年范围 */
+  prefBirthFrom: int("pref_birth_from"),
+  prefBirthTo: int("pref_birth_to"),
+  /** 结构化雷区：是否接受异地（接受 / 不接受 / 看情况） */
+  acceptDistance: varchar("accept_distance", { length: 8 }),
   intro: text("intro"),
   expectation: text("expectation"),
   value: text("value"),

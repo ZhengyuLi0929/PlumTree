@@ -20,7 +20,8 @@ export default function StatsV3() {
     const qids = Array.from({ length: 100 }, (_, i) => i + 1)
     const rankIds = ['rank1', 'rank2', 'rank3']
     const header = ['id', 'name', 'wechat', 'phone', 'gender', 'birth_year', 'city', 'grad_class',
-      'mbti', 'height', 'intro', 'expectation', 'value', 'quiz_version', 'type_code', 'created_at',
+      'mbti', 'height', 'job', 'pref_min_height', 'pref_birth_from', 'pref_birth_to', 'accept_distance',
+      'intro', 'expectation', 'value', 'quiz_version', 'type_code', 'created_at',
       ...qids.map(id => `q${id}`),
       ...rankIds.flatMap(r => [1, 2, 3, 4, 5].map(i => `${r}_${i}`)),
       ...FINAL_IDS.map(id => `t${id}`)]
@@ -28,7 +29,8 @@ export default function StatsV3() {
     for (const row of res.data) {
       const cells: (string | number | null)[] = [
         row.id, row.name, row.wechat, row.phone, row.gender, row.birthYear, row.city, row.gradClass,
-        row.mbti, row.height, row.intro, row.expectation, row.value, row.quizVersion, row.typeCode,
+        row.mbti, row.height, row.job, row.prefMinHeight, row.prefBirthFrom, row.prefBirthTo, row.acceptDistance,
+        row.intro, row.expectation, row.value, row.quizVersion, row.typeCode,
         row.createdAt ? new Date(row.createdAt).toISOString() : '',
         ...qids.map(id => row.answers[String(id)] ?? ''),
         ...rankIds.flatMap(rid => [0, 1, 2, 3, 4].map(i => row.rankings[rid]?.[i] ?? '')),

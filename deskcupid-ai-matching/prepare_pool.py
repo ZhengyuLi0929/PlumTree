@@ -67,6 +67,17 @@ def masked_card(person: dict, people: list[dict]) -> dict:
         "birthYear": person.get("birthYear"),
         "heightCm": person.get("height"),
         "mbti": person.get("mbti") or "",
+        "job": person.get("job") or "",
+        "prefMinHeight": person.get("prefMinHeight"),
+        "prefBirthFrom": person.get("prefBirthFrom"),
+        "prefBirthTo": person.get("prefBirthTo"),
+        "acceptDistance": person.get("acceptDistance") or "",
+        "loveLanguage": person.get("loveLanguage") or "",
+        # 51 题测评的五维百分比（不含四字母代码，避免模型刻板印象）
+        "loveDims": {
+            key: {"title": bar["title"], "leftName": bar["leftName"], "left": bar["left"], "rightName": bar["rightName"], "right": bar["right"]}
+            for key, bar in (person.get("bars") or {}).items()
+        },
         "intro": redact_text(person.get("intro") or "", people),
         "expectation": redact_text(person.get("expectation") or "", people),
         "value": redact_text(person.get("value") or "", people),
@@ -103,6 +114,13 @@ def main() -> None:
                 "birthYear": raw.get("birthYear"),
                 "height": raw.get("height"),
                 "mbti": raw.get("mbti") or "",
+                "job": raw.get("job") or "",
+                "prefMinHeight": raw.get("prefMinHeight"),
+                "prefBirthFrom": raw.get("prefBirthFrom"),
+                "prefBirthTo": raw.get("prefBirthTo"),
+                "acceptDistance": raw.get("acceptDistance") or "",
+                "loveLanguage": raw.get("loveLanguage") or "",
+                "bars": raw.get("bars") or {},
                 "intro": raw.get("intro") or "",
                 "expectation": raw.get("expectation") or "",
                 "value": raw.get("value") or "",

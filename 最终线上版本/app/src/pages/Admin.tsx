@@ -17,6 +17,11 @@ type User = {
   gradClass: string;
   mbti: string | null;
   height: number | null;
+  job: string | null;
+  prefMinHeight: number | null;
+  prefBirthFrom: number | null;
+  prefBirthTo: number | null;
+  acceptDistance: string | null;
   intro: string | null;
   expectation: string | null;
   value: string | null;
@@ -334,6 +339,19 @@ function UserDialog({
         <Row label="性别" value={user.gender} />
         <Row label="城市 / 出生年 / 届别" value={`${user.city} · ${user.birthYear} · ${user.gradClass}`} />
         <Row label="MBTI / 身高" value={[user.mbti, user.height].filter(Boolean).join(" · ")} />
+        <Row label="职业" value={user.job} />
+        <Row
+          label="对对方的硬要求"
+          value={[
+            user.prefMinHeight ? `身高≥${user.prefMinHeight}` : "",
+            user.prefBirthFrom || user.prefBirthTo
+              ? `出生年 ${user.prefBirthFrom ?? "不限"}–${user.prefBirthTo ?? "不限"}`
+              : "",
+            user.acceptDistance ? `异地：${user.acceptDistance}` : "",
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        />
         <Row label="介绍" value={user.intro} />
         <Row label="期待" value={user.expectation} />
         <Row label="看重" value={user.value} />

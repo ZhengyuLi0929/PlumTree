@@ -82,6 +82,11 @@ const DDL = [
     grad_class varchar(64) NOT NULL,
     mbti varchar(8),
     height int,
+    job varchar(64),
+    pref_min_height int,
+    pref_birth_from int,
+    pref_birth_to int,
+    accept_distance varchar(8),
     intro text,
     expectation text,
     \`value\` text,
@@ -121,11 +126,21 @@ export async function ensureTable() {
       // 用 query 而不是预编译 execute：MySQL 不允许 CREATE TABLE 走 prepared statement
       await p.query(sql);
     }
-    try {
-      await p.query(`ALTER TABLE profiles ADD COLUMN phone varchar(20) NOT NULL DEFAULT ''`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (!/Duplicate column|1060/i.test(msg)) throw err;
+    const alters = [
+      `ALTER TABLE profiles ADD COLUMN phone varchar(20) NOT NULL DEFAULT ''`,
+      `ALTER TABLE profiles ADD COLUMN job varchar(64)`,
+      `ALTER TABLE profiles ADD COLUMN pref_min_height int`,
+      `ALTER TABLE profiles ADD COLUMN pref_birth_from int`,
+      `ALTER TABLE profiles ADD COLUMN pref_birth_to int`,
+      `ALTER TABLE profiles ADD COLUMN accept_distance varchar(8)`,
+    ];
+    for (const sql of alters) {
+      try {
+        await p.query(sql);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!/Duplicate column|1060/i.test(msg)) throw err;
+      }
     }
   })();
   tableReady.catch(() => {

@@ -154,10 +154,22 @@ export const responseRouter = createRouter({
         gradClass: z.string().trim().min(1).max(64),
         mbti: z.string().trim().max(8).optional(),
         height: z.number().int().min(130).max(230).optional(),
-        intro: z.string().trim().max(300).optional(),
+        job: z.string().trim().max(64).optional(),
+        prefMinHeight: z.number().int().min(140).max(210).optional(),
+        prefBirthFrom: z.number().int().min(currentYear - 80).max(currentYear - 16).optional(),
+        prefBirthTo: z.number().int().min(currentYear - 80).max(currentYear - 16).optional(),
+        acceptDistance: z.enum(["接受", "不接受", "看情况"]).optional(),
+        intro: z.string().trim().min(30, "自我介绍至少写 30 字，匹配要靠它了解你").max(300),
         expectation: z.string().trim().max(300).optional(),
         value: z.string().trim().max(300).optional(),
       })
+        .refine(
+          (v) =>
+            v.prefBirthFrom === undefined ||
+            v.prefBirthTo === undefined ||
+            v.prefBirthFrom <= v.prefBirthTo,
+          { message: "期望出生年范围下限不能大于上限" },
+        ),
     )
     .mutation(async ({ input }) => {
       let claims;
@@ -186,6 +198,11 @@ export const responseRouter = createRouter({
         gradClass: input.gradClass,
         mbti: input.mbti || null,
         height: input.height ?? null,
+        job: input.job || null,
+        prefMinHeight: input.prefMinHeight ?? null,
+        prefBirthFrom: input.prefBirthFrom ?? null,
+        prefBirthTo: input.prefBirthTo ?? null,
+        acceptDistance: input.acceptDistance || null,
         intro: input.intro || null,
         expectation: input.expectation || null,
         value: input.value || null,
@@ -313,6 +330,11 @@ export const responseRouter = createRouter({
         gradClass: p.gradClass,
         mbti: p.mbti,
         height: p.height,
+        job: p.job,
+        prefMinHeight: p.prefMinHeight,
+        prefBirthFrom: p.prefBirthFrom,
+        prefBirthTo: p.prefBirthTo,
+        acceptDistance: p.acceptDistance,
         intro: p.intro,
         expectation: p.expectation,
         value: p.value,
@@ -425,6 +447,11 @@ export const responseRouter = createRouter({
         gradClass: p.gradClass,
         mbti: p.mbti,
         height: p.height,
+        job: p.job,
+        prefMinHeight: p.prefMinHeight,
+        prefBirthFrom: p.prefBirthFrom,
+        prefBirthTo: p.prefBirthTo,
+        acceptDistance: p.acceptDistance,
         intro: p.intro,
         expectation: p.expectation,
         value: p.value,

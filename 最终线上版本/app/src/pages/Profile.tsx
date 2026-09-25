@@ -28,6 +28,11 @@ export function ProfileForm({
     gradClass: "",
     mbti: "",
     height: "",
+    job: "",
+    prefMinHeight: "",
+    prefBirthFrom: "",
+    prefBirthTo: "",
+    acceptDistance: "",
     intro: "",
     expectation: "",
     value: "",
@@ -37,6 +42,8 @@ export function ProfileForm({
   const set = (k: keyof typeof form) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  const parseYear = (s: string) => (s ? parseInt(s, 10) : undefined);
+
   const submit = () => {
     setErr("");
     if (!form.name.trim()) return setErr("请填写姓名");
@@ -44,6 +51,10 @@ export function ProfileForm({
     if (!by || by < 1946 || by > 2010) return setErr("请填写正确的出生年份");
     if (!form.city.trim()) return setErr("请填写所在城市");
     if (!form.gradClass.trim()) return setErr("请填写毕业届别和班级，如 2016届3班");
+    if (form.intro.trim().length < 30) return setErr(`自我介绍至少写 30 字（当前 ${form.intro.trim().length} 字），匹配要靠它了解你`);
+    const from = parseYear(form.prefBirthFrom);
+    const to = parseYear(form.prefBirthTo);
+    if (from && to && from > to) return setErr("期望出生年范围下限不能大于上限");
     register.mutate(
       {
         token,
@@ -55,7 +66,12 @@ export function ProfileForm({
         gradClass: form.gradClass.trim(),
         mbti: form.mbti.trim().toUpperCase() || undefined,
         height: form.height ? parseInt(form.height, 10) : undefined,
-        intro: form.intro.trim() || undefined,
+        job: form.job.trim() || undefined,
+        prefMinHeight: form.prefMinHeight ? parseInt(form.prefMinHeight, 10) : undefined,
+        prefBirthFrom: from,
+        prefBirthTo: to,
+        acceptDistance: (form.acceptDistance || undefined) as "接受" | "不接受" | "看情况" | undefined,
+        intro: form.intro.trim(),
         expectation: form.expectation.trim() || undefined,
         value: form.value.trim() || undefined,
       },
@@ -92,13 +108,53 @@ export function ProfileForm({
               <div>{label("所在城市", true)}<input className={inputCls} style={inputStyle} value={form.city} onChange={set("city")} placeholder="如 北京" /></div>
             </div>
             <div>{label("毕业届别和班级", true)}<input className={inputCls} style={inputStyle} value={form.gradClass} onChange={set("gradClass")} placeholder="如 2016届3班" /></div>
+            <div>{label("职业 / 行业")}<input className={inputCls} style={inputStyle} value={form.job} onChange={set("job")} placeholder="如 互联网产品经理 / 医生 / 在读博士" maxLength={64} /></div>
             <div className="grid grid-cols-2 gap-3">
               <div>{label("MBTI")}<input className={inputCls} style={inputStyle} value={form.mbti} onChange={set("mbti")} placeholder="如 INFP" maxLength={4} /></div>
               <div>{label("身高（cm）")}<input className={inputCls} style={inputStyle} type="number" value={form.height} onChange={set("height")} placeholder="如 172" /></div>
             </div>
+
+            {/* 结构化雷区：对对方的硬要求 */}
+            <div className="rounded-2xl p-4" style={{ background: "#FBF3E3" }}>
+              <p className="text-sm font-semibold mb-1" style={{ color: "#3d3830" }}>对对方的硬要求（都可选）</p>
+              <p className="text-xs mb-3" style={{ color: "#7a7060" }}>写了就会作为匹配的硬参考；不写表示没有硬性要求。</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>{label("对方最低身高（cm）")}<input className={inputCls} style={inputStyle} type="number" value={form.prefMinHeight} onChange={set("prefMinHeight")} placeholder="如 170" /></div>
+                <div>
+                  {label("对方出生年范围")}
+                  <div className="flex items-center gap-2">
+                    <input className={inputCls} style={inputStyle} type="number" value={form.prefBirthFrom} onChange={set("prefBirthFrom")} placeholder="1994" />
+                    <span className="text-sm shrink-0" style={{ color: "#a3988a" }}>–</span>
+                    <input className={inputCls} style={inputStyle} type="number" value={form.prefBirthTo} onChange={set("prefBirthTo")} placeholder="2000" />
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3">
+                {label("是否接受异地")}
+                <div className="flex gap-2">
+                  {["不接受", "看情况", "接受"].map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, acceptDistance: f.acceptDistance === opt ? "" : opt }))}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all"
+                      style={{
+                        background: form.acceptDistance === opt ? "#F97028" : "#FFFDF6",
+                        color: form.acceptDistance === opt ? "#FFFDF6" : "#5a5347",
+                        border: "2px solid",
+                        borderColor: form.acceptDistance === opt ? "#F97028" : "#E8DCC0",
+                      }}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <div>
-              {label("三句话介绍一下自己")}
-              <textarea className={inputCls} style={{ ...inputStyle, resize: "none" }} rows={3} value={form.intro} onChange={set("intro")} placeholder="随便写：工作、爱好、最近在忙什么…" maxLength={300} />
+              {label(`介绍一下自己（至少 30 字，已写 ${form.intro.trim().length} 字）`, true)}
+              <textarea className={inputCls} style={{ ...inputStyle, resize: "none" }} rows={3} value={form.intro} onChange={set("intro")} placeholder="随便写：工作、爱好、最近在忙什么…写得越具体，匹配越准" maxLength={300} />
             </div>
             <div>
               {label("期待认识什么样的人")}

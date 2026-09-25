@@ -32,6 +32,28 @@ def load_dotenv() -> None:
         os.environ.setdefault(key.strip(), value.strip())
 
 
+def pref_text(card: dict) -> str:
+    parts = []
+    if card.get("prefMinHeight"):
+        parts.append(f"身高≥{card['prefMinHeight']}cm")
+    birth_from, birth_to = card.get("prefBirthFrom"), card.get("prefBirthTo")
+    if birth_from or birth_to:
+        parts.append(f"出生年 {birth_from or '不限'}–{birth_to or '不限'}")
+    if card.get("acceptDistance"):
+        parts.append(f"异地：{card['acceptDistance']}")
+    return "；".join(parts) if parts else "未填"
+
+
+def dims_text(card: dict) -> str:
+    dims = card.get("loveDims") or {}
+    if not dims:
+        return "未测"
+    return "；".join(
+        f"{d['title']} {d['leftName']}{d['left']}%/{d['rightName']}{d['right']}%"
+        for d in dims.values()
+    )
+
+
 def card_text(card: dict) -> str:
     height = card.get("heightCm")
     height_s = f"{height}cm" if height else "未填"
@@ -41,6 +63,10 @@ def card_text(card: dict) -> str:
         f"出生年: {card.get('birthYear') or '未填'}\n"
         f"身高: {height_s}\n"
         f"MBTI: {card.get('mbti') or '未填'}\n"
+        f"职业: {card.get('job') or '未填'}\n"
+        f"对对方的硬要求: {pref_text(card)}\n"
+        f"恋爱维度(51题测评): {dims_text(card)}\n"
+        f"爱的语言: {card.get('loveLanguage') or '未测'}\n"
         f"自我介绍: {card.get('intro') or '（空）'}\n"
         f"理想型: {card.get('expectation') or '（空）'}\n"
         f"一段关系里最看重: {card.get('value') or '（空）'}"

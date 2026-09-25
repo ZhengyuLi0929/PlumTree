@@ -51,11 +51,11 @@
   "officialMatch": {
     "FSRH": "FSPH",
     "FSPH": "FSRH",
-    "FSRC": "FSPC",
+    "FSRC": "FSRH",
     "FSPC": "FSRC",
     "FGRH": "FGPH",
     "FGPH": "FGRH",
-    "FGRC": "FGPC",
+    "FGRC": "FGRH",
     "FGPC": "FGRC",
     "ISRH": "ISPH",
     "ISPH": "ISRH",
