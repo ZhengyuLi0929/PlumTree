@@ -29,7 +29,23 @@ export const env = {
   aliyunAccessKeySecret: optional("ALIYUN_ACCESS_KEY_SECRET"),
   smsSignName: optional("SMS_SIGN_NAME"),
   smsOtpTemplate: optional("SMS_OTP_TEMPLATE"),
+  // 微信月老机器人（企业微信客服 + LLM）
+  wecomCorpid: optional("WECOM_CORPID"),
+  wecomKfSecret: optional("WECOM_KF_SECRET"),
+  wecomKfOpenid: optional("WECOM_KF_OPENID"),
+  wecomToken: optional("WECOM_TOKEN"),
+  wecomAesKey: optional("WECOM_AES_KEY"),
+  llmApiKey: optional("LLM_API_KEY"),
+  llmBaseUrl: optional("LLM_BASE_URL", "https://api.moonshot.cn/v1"),
+  llmModel: optional("LLM_MODEL", "kimi-k2-0905-preview"),
+  // T5 合规：字段级加密密钥 / 第三方内容安全 API（接口位预留）
+  fieldEncryptionKey: optional("FIELD_ENCRYPTION_KEY"),
+  contentSafetyUrl: optional("CONTENT_SAFETY_URL"),
 };
+
+export function wecomConfigured() {
+  return Boolean(env.wecomCorpid && env.wecomKfSecret && env.wecomKfOpenid && env.wecomToken && env.wecomAesKey);
+}
 
 export function tencentSmsConfigured() {
   return Boolean(

@@ -4,6 +4,7 @@ import Stats from './pages/Stats'
 import StatsV2 from './pages/StatsV2'
 import StatsV3 from './pages/StatsV3'
 import Admin from './pages/Admin'
+import Privacy from './pages/Privacy'
 import { VisitTracker } from './components/VisitTracker'
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="/stats-v2" element={<StatsV2 />} />
         <Route path="/stats-v3" element={<StatsV3 />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/privacy" element={<Privacy />} />
       </Routes>
     </>
   )

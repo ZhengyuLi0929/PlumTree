@@ -3,7 +3,9 @@ import { and, eq, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createRouter, publicQuery } from "./middleware";
 import { ensureTable, getDb, hasDatabase } from "./queries/connection";
-import { responses, responsesV2, responsesV3, profiles, matchPairs, visits } from "../db/schema";
+import { responses, responsesV2, responsesV3, profiles, matchPairs, visits, matches, matchPool, merchants, redemptions, botUsers } from "../db/schema";
+import { logAudit } from "./lib/audit";
+import { setPoolState } from "./lib/botStore";
 import {
   isoWeekKey,
   isValidInvite,
@@ -21,6 +23,7 @@ import {
   tokenFromRequest,
 } from "./lib/admin";
 import { classifyVisitSource, cstDayKey } from "./lib/visit";
+import { insertPoolEntry } from "./lib/botStore";
 
 function fail(code: TRPCError["code"], message: string): never {
   throw new TRPCError({ code, message });
@@ -162,6 +165,7 @@ export const responseRouter = createRouter({
         intro: z.string().trim().min(30, "自我介绍至少写 30 字，匹配要靠它了解你").max(300),
         expectation: z.string().trim().max(300).optional(),
         value: z.string().trim().max(300).optional(),
+        consent: z.literal(true, { error: "请先阅读并勾选《隐私政策》" }),
       })
         .refine(
           (v) =>
@@ -169,6 +173,11 @@ export const responseRouter = createRouter({
             v.prefBirthTo === undefined ||
             v.prefBirthFrom <= v.prefBirthTo,
           { message: "期望出生年范围下限不能大于上限" },
+        )
+        .refine(
+          // 法定婚龄校验（按当年计算）：男 22 / 女 20
+          (v) => (v.gender === "男" ? v.birthYear <= currentYear - 22 : v.birthYear <= currentYear - 20),
+          { message: "还没到法定婚龄（男 22 / 女 20），先好好长大，过两年再来～" },
         ),
     )
     .mutation(async ({ input }) => {
@@ -187,7 +196,7 @@ export const responseRouter = createRouter({
         dbUnavailable(err);
       }
       const db = getDb();
-      await db.insert(profiles).values({
+      const inserted = await db.insert(profiles).values({
         sessionId: input.sessionId,
         name: input.name,
         wechat: claims.wechat,
@@ -206,7 +215,10 @@ export const responseRouter = createRouter({
         intro: input.intro || null,
         expectation: input.expectation || null,
         value: input.value || null,
+        consentAt: new Date(),
       });
+      // 报名即入匹配池（org_tag 默认 default，后台可调整）
+      await insertPoolEntry(Number(inserted[0].insertId), input.gender);
       return { ok: true };
     }),
 
@@ -294,6 +306,35 @@ export const responseRouter = createRouter({
       sources: [...bySource.entries()]
         .map(([source, count]) => ({ source, count }))
         .sort((a, b) => b.count - a.count),
+    };
+  }),
+
+  // 运营指标看板（T3）：每周配对数、确认率、成行率、回访均分、池内性别比
+  opsStats: publicQuery.query(async ({ ctx }) => {
+    await requireAdmin(ctx.req);
+    await ensureTable();
+    const db = getDb();
+    const weekKey = isoWeekKey();
+    const weekMatches = await db.select().from(matches).where(eq(matches.weekKey, weekKey));
+    const poolRows = await db.select().from(matchPool).where(eq(matchPool.state, "in"));
+
+    const sentOrLater = weekMatches.filter((m) => m.state !== "pending_send" && m.state !== "cancelled");
+    const confirmed = weekMatches.filter((m) => ["confirmed", "dating", "done"].includes(m.state));
+    const feedbackGiven = weekMatches.filter((m) => m.met !== null || m.score !== null);
+    const metYes = weekMatches.filter((m) => m.met === 1);
+    const scores = weekMatches.map((m) => m.score).filter((s): s is number => s !== null);
+
+    return {
+      weekKey,
+      weeklyPairs: weekMatches.length,
+      pendingSend: weekMatches.filter((m) => m.state === "pending_send").length,
+      cancelled: weekMatches.filter((m) => m.state === "cancelled").length,
+      confirmRate: sentOrLater.length ? Math.round((confirmed.length / sentOrLater.length) * 100) : null,
+      meetRate: feedbackGiven.length ? Math.round((metYes.length / feedbackGiven.length) * 100) : null,
+      avgScore: scores.length ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : null,
+      poolMen: poolRows.filter((p) => p.gender === "男").length,
+      poolWomen: poolRows.filter((p) => p.gender === "女").length,
+      poolReview: (await db.select().from(matchPool).where(eq(matchPool.state, "review"))).length,
     };
   }),
 
@@ -402,6 +443,196 @@ export const responseRouter = createRouter({
       await db.delete(matchPairs).where(eq(matchPairs.id, input.id));
       return { ok: true };
     }),
+
+  // ===== T4：空投队列 / 匹配池 / 商户 / 核销 =====
+
+  airdropQueue: publicQuery.query(async ({ ctx }) => {
+    await requireAdmin(ctx.req);
+    await ensureTable();
+    const db = getDb();
+    const weekKey = isoWeekKey();
+    const rows = await db.select().from(matches).where(eq(matches.weekKey, weekKey));
+    const profRows = await db.select().from(profiles);
+    const botRows = await db.select().from(botUsers);
+    const nameOf = new Map(profRows.map((p) => [p.id, p.name]));
+    const bound = new Set(botRows.map((b) => b.profileId));
+    return {
+      weekKey,
+      items: rows.map((m) => ({
+        id: m.id,
+        state: m.state,
+        reason: m.reason,
+        man: nameOf.get(m.manProfileId) ?? `#${m.manProfileId}`,
+        woman: nameOf.get(m.womanProfileId) ?? `#${m.womanProfileId}`,
+        manBound: bound.has(m.manProfileId),
+        womanBound: bound.has(m.womanProfileId),
+        createdAt: m.createdAt,
+      })),
+    };
+  }),
+
+  confirmAirdrop: publicQuery
+    .input(z.object({ id: z.coerce.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      await requireAdmin(ctx.req);
+      const { sendAirdrop } = await import("./lib/airdrop");
+      const r = await sendAirdrop(input.id);
+      await logAudit("admin", "airdrop.confirm", `match:${input.id}`, r);
+      return { ok: true, ...r };
+    }),
+
+  confirmAllAirdrops: publicQuery.mutation(async ({ ctx }) => {
+    await requireAdmin(ctx.req);
+    await ensureTable();
+    const db = getDb();
+    const weekKey = isoWeekKey();
+    const pending = await db.select().from(matches).where(and(eq(matches.weekKey, weekKey), eq(matches.state, "pending_send")));
+    const { sendAirdrop } = await import("./lib/airdrop");
+    let done = 0;
+    const errors: string[] = [];
+    for (const m of pending) {
+      try {
+        await sendAirdrop(m.id);
+        done++;
+      } catch (err) {
+        errors.push(`#${m.id}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    await logAudit("admin", "airdrop.confirmAll", weekKey, { total: pending.length, done, errors });
+    return { ok: true, total: pending.length, done, errors };
+  }),
+
+  poolList: publicQuery.query(async ({ ctx }) => {
+    await requireAdmin(ctx.req);
+    await ensureTable();
+    const db = getDb();
+    const poolRows = await db.select().from(matchPool);
+    const profRows = await db.select().from(profiles);
+    const profOf = new Map(profRows.map((p) => [p.id, p]));
+    return poolRows.map((p) => ({
+      profileId: p.profileId,
+      name: profOf.get(p.profileId)?.name ?? `#${p.profileId}`,
+      city: profOf.get(p.profileId)?.city ?? "",
+      gender: p.gender,
+      orgTag: p.orgTag,
+      state: p.state,
+      priority: p.priority,
+    }));
+  }),
+
+  poolSetState: publicQuery
+    .input(z.object({ profileId: z.number().int().positive(), state: z.enum(["in", "out", "review"]) }))
+    .mutation(async ({ input, ctx }) => {
+      await requireAdmin(ctx.req);
+      await setPoolState(input.profileId, input.state);
+      await logAudit("admin", "pool.setState", `profile:${input.profileId}`, input.state);
+      return { ok: true };
+    }),
+
+  poolSetOrgTag: publicQuery
+    .input(z.object({ profileId: z.number().int().positive(), orgTag: z.string().trim().min(1).max(64) }))
+    .mutation(async ({ input, ctx }) => {
+      await requireAdmin(ctx.req);
+      await ensureTable();
+      await getDb().update(matchPool).set({ orgTag: input.orgTag }).where(eq(matchPool.profileId, input.profileId));
+      await logAudit("admin", "pool.setOrgTag", `profile:${input.profileId}`, input.orgTag);
+      return { ok: true };
+    }),
+
+  merchantsList: publicQuery.query(async ({ ctx }) => {
+    await requireAdmin(ctx.req);
+    await ensureTable();
+    return getDb().select().from(merchants);
+  }),
+
+  merchantSave: publicQuery
+    .input(
+      z.object({
+        id: z.number().int().positive().optional(),
+        name: z.string().trim().min(1).max(64),
+        address: z.string().trim().max(255).optional(),
+        rebateCents: z.number().int().min(0),
+        status: z.enum(["active", "paused"]).default("active"),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      await requireAdmin(ctx.req);
+      await ensureTable();
+      const db = getDb();
+      if (input.id) {
+        await db
+          .update(merchants)
+          .set({ name: input.name, address: input.address || null, rebateCents: input.rebateCents, status: input.status })
+          .where(eq(merchants.id, input.id));
+      } else {
+        await db.insert(merchants).values({ name: input.name, address: input.address || null, rebateCents: input.rebateCents, status: input.status });
+      }
+      await logAudit("admin", "merchant.save", input.name, { id: input.id ?? "new" });
+      return { ok: true };
+    }),
+
+  merchantRemove: publicQuery
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      await requireAdmin(ctx.req);
+      await ensureTable();
+      await getDb().delete(merchants).where(eq(merchants.id, input.id));
+      await logAudit("admin", "merchant.remove", `merchant:${input.id}`);
+      return { ok: true };
+    }),
+
+  redemptionsList: publicQuery.query(async ({ ctx }) => {
+    await requireAdmin(ctx.req);
+    await ensureTable();
+    const db = getDb();
+    const rows = await db.select().from(redemptions);
+    const merchRows = await db.select().from(merchants);
+    const nameOf = new Map(merchRows.map((m) => [m.id, m.name]));
+    return rows.map((r) => ({
+      ...r,
+      merchantName: nameOf.get(r.merchantId) ?? `#${r.merchantId}`,
+    }));
+  }),
+
+  redemptionCreate: publicQuery
+    .input(z.object({ matchId: z.number().int().positive(), merchantId: z.number().int().positive(), note: z.string().trim().max(255).optional() }))
+    .mutation(async ({ input, ctx }) => {
+      await requireAdmin(ctx.req);
+      await ensureTable();
+      await getDb().insert(redemptions).values({ matchId: input.matchId, merchantId: input.merchantId, note: input.note || null });
+      await logAudit("admin", "redemption.create", `match:${input.matchId}`, input);
+      return { ok: true };
+    }),
+
+  redemptionConfirm: publicQuery
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      await requireAdmin(ctx.req);
+      await ensureTable();
+      await getDb().update(redemptions).set({ confirmedAt: new Date() }).where(eq(redemptions.id, input.id));
+      await logAudit("admin", "redemption.confirm", `redemption:${input.id}`);
+      return { ok: true };
+    }),
+
+  redemptionSettle: publicQuery
+    .input(z.object({ id: z.number().int().positive(), status: z.enum(["pending", "settled"]) }))
+    .mutation(async ({ input, ctx }) => {
+      await requireAdmin(ctx.req);
+      await ensureTable();
+      await getDb().update(redemptions).set({ settleStatus: input.status }).where(eq(redemptions.id, input.id));
+      await logAudit("admin", "redemption.settle", `redemption:${input.id}`, input.status);
+      return { ok: true };
+    }),
+
+  // 运营数据导出（matches / redemptions，延续 export 的模式）
+  exportOps: publicQuery.query(async ({ ctx }) => {
+    await requireAdmin(ctx.req);
+    await ensureTable();
+    const db = getDb();
+    const matchRows = await db.select().from(matches);
+    const redemptionRows = await db.select().from(redemptions);
+    return { matches: matchRows, redemptions: redemptionRows };
+  }),
 
   // 导出全部明细（供数据分析/题库迭代/人工匹配）
   export: publicQuery.query(async ({ ctx }) => {

@@ -38,6 +38,7 @@ export function ProfileForm({
     value: "",
   });
   const [err, setErr] = useState("");
+  const [consent, setConsent] = useState(false);
 
   const set = (k: keyof typeof form) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -49,9 +50,13 @@ export function ProfileForm({
     if (!form.name.trim()) return setErr("请填写姓名");
     const by = parseInt(form.birthYear, 10);
     if (!by || by < 1946 || by > 2010) return setErr("请填写正确的出生年份");
+    const thisYear = new Date().getFullYear();
+    if (gender === "男" && by > thisYear - 22) return setErr("男生要满 22 岁（法定婚龄）才能参加哦，过两年再来～");
+    if (gender === "女" && by > thisYear - 20) return setErr("女生要满 20 岁（法定婚龄）才能参加哦，过两年再来～");
     if (!form.city.trim()) return setErr("请填写所在城市");
     if (!form.gradClass.trim()) return setErr("请填写毕业届别和班级，如 2016届3班");
     if (form.intro.trim().length < 30) return setErr(`自我介绍至少写 30 字（当前 ${form.intro.trim().length} 字），匹配要靠它了解你`);
+    if (!consent) return setErr("请先阅读并勾选《隐私政策》");
     const from = parseYear(form.prefBirthFrom);
     const to = parseYear(form.prefBirthTo);
     if (from && to && from > to) return setErr("期望出生年范围下限不能大于上限");
@@ -74,6 +79,7 @@ export function ProfileForm({
         intro: form.intro.trim(),
         expectation: form.expectation.trim() || undefined,
         value: form.value.trim() || undefined,
+        consent: true,
       },
       {
         onSuccess: () => onDone(),
@@ -165,9 +171,22 @@ export function ProfileForm({
               <textarea className={inputCls} style={{ ...inputStyle, resize: "none" }} rows={2} value={form.value} onChange={set("value")} placeholder="一句话就好" maxLength={300} />
             </div>
             {err && <p className="text-sm font-semibold" style={{ color: "#F97028" }}>{err}</p>}
+            <label className="flex items-start gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                className="mt-0.5 w-4 h-4 shrink-0 accent-[#F97028]"
+              />
+              <span className="text-xs leading-relaxed" style={{ color: "#5a5347" }}>
+                我已阅读并同意
+                <a href="/privacy" target="_blank" className="underline underline-offset-2 font-semibold" style={{ color: "#F97028" }}>《隐私政策》</a>
+                ，知晓我的择偶偏好等敏感个人信息仅用于本次校友匹配。
+              </span>
+            </label>
             <button
               onClick={submit}
-              disabled={register.isPending}
+              disabled={register.isPending || !consent}
               className="font-display text-lg py-4 rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-95 disabled:opacity-50"
               style={{ background: "#F97028", color: "#FFFDF6", boxShadow: "0 8px 24px rgba(249,112,40,0.35)" }}
             >

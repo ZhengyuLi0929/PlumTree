@@ -90,6 +90,7 @@ const DDL = [
     intro text,
     expectation text,
     \`value\` text,
+    consent_at timestamp NULL,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS otp_codes (
@@ -117,6 +118,101 @@ const DDL = [
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_visits_day (day_key)
   )`,
+  `CREATE TABLE IF NOT EXISTS kf_messages (
+    id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    external_userid varchar(64) NOT NULL,
+    msgid varchar(64),
+    origin varchar(8) NOT NULL,
+    content text,
+    raw text,
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_kf_user (external_userid)
+  )`,
+  `CREATE TABLE IF NOT EXISTS bot_users (
+    id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    external_userid varchar(64) NOT NULL,
+    profile_id bigint,
+    name varchar(64),
+    state varchar(16) NOT NULL DEFAULT 'idle',
+    requirements text,
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_external_userid (external_userid)
+  )`,
+  `CREATE TABLE IF NOT EXISTS weekly_cycles (
+    id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    week_key varchar(16) NOT NULL,
+    state varchar(16) NOT NULL DEFAULT 'idle',
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_week_key (week_key)
+  )`,
+  `CREATE TABLE IF NOT EXISTS matches (
+    id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    week_key varchar(16) NOT NULL,
+    man_profile_id bigint NOT NULL,
+    woman_profile_id bigint NOT NULL,
+    reason text,
+    state varchar(16) NOT NULL DEFAULT 'pending_send',
+    met int,
+    score int,
+    willing varchar(8),
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_matches_week (week_key)
+  )`,
+  `CREATE TABLE IF NOT EXISTS match_pool (
+    id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    profile_id bigint NOT NULL,
+    org_tag varchar(64) NOT NULL DEFAULT 'default',
+    gender varchar(8) NOT NULL,
+    state varchar(16) NOT NULL DEFAULT 'in',
+    priority int NOT NULL DEFAULT 0,
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_pool_profile (profile_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS cron_logs (
+    id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    action varchar(64) NOT NULL,
+    detail text,
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS merchants (
+    id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    name varchar(64) NOT NULL,
+    address varchar(255),
+    rebate_cents int NOT NULL DEFAULT 0,
+    status varchar(16) NOT NULL DEFAULT 'active',
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS redemptions (
+    id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    match_id bigint NOT NULL,
+    merchant_id bigint NOT NULL,
+    confirmed_at timestamp NULL,
+    settle_status varchar(16) NOT NULL DEFAULT 'pending',
+    note varchar(255),
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS audit_logs (
+    id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    actor varchar(64) NOT NULL,
+    action varchar(64) NOT NULL,
+    target varchar(128),
+    detail text,
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS payments (
+    id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    match_id bigint,
+    amount_cents int NOT NULL DEFAULT 0,
+    currency varchar(8) NOT NULL DEFAULT 'CNY',
+    status varchar(16) NOT NULL DEFAULT 'pending',
+    reason varchar(128),
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  )`,
 ];
 
 export async function ensureTable() {
@@ -133,6 +229,7 @@ export async function ensureTable() {
       `ALTER TABLE profiles ADD COLUMN pref_birth_from int`,
       `ALTER TABLE profiles ADD COLUMN pref_birth_to int`,
       `ALTER TABLE profiles ADD COLUMN accept_distance varchar(8)`,
+      `ALTER TABLE profiles ADD COLUMN consent_at timestamp NULL`,
     ];
     for (const sql of alters) {
       try {

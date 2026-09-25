@@ -12,6 +12,8 @@
     "check": "tsc -b",
     "format": "prettier --write .",
     "test": "vitest run",
+    "test:bot": "esbuild scripts/test-bot.ts --platform=node --bundle --format=esm --outfile=dist/test-bot.mjs --alias:@db=./db --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && node dist/test-bot.mjs",
+    "test:matching": "esbuild scripts/test-matching.ts --platform=node --bundle --format=esm --outfile=dist/test-matching.mjs --alias:@db=./db --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && node dist/test-matching.mjs",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:generate": "drizzle-kit generate",

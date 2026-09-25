@@ -16,12 +16,30 @@ export function MatchIntro({ sessionId, profileDone, enrolled, onEnrolled, onCon
   const [open, setOpen] = useState(false);
 
   if (profileDone) {
+    const kfUrl = import.meta.env.VITE_WECOM_KF_URL as string | undefined;
     return (
       <div className="rounded-3xl p-6 mb-4 animate-pop" style={{ background: "#EAF5EE", boxShadow: "0 6px 24px rgba(18,18,18,0.06)" }}>
         <p className="font-display text-lg mb-2" style={{ color: "#121212" }}>你已加入本周匹配</p>
         <p className="text-sm leading-relaxed" style={{ color: "#5a5347" }}>
           每周三微信机器人会发给你一位对象和理由；周三周四可互传一句话；周五零点前确认是否见面，周末赴约；周一周二回收反馈。
         </p>
+        {/* 月老入口：企业微信客服 */}
+        <div className="mt-4 rounded-2xl p-4 flex items-center gap-4" style={{ background: "#FFFDF6" }}>
+          <img src="/wecom-kf-qr.svg" alt="微信月老客服二维码" className="w-24 h-24 rounded-xl shrink-0" style={{ border: "1px solid #F3ECD2" }} />
+          <div className="flex-1">
+            <p className="font-display text-base mb-1" style={{ color: "#121212" }}>添加「微信月老」</p>
+            <p className="text-xs leading-relaxed mb-2" style={{ color: "#7a7060" }}>
+              配对通知、传话和约会确认都通过它进行，记得扫码添加。
+            </p>
+            {kfUrl && (
+              <a href={kfUrl} target="_blank" rel="noreferrer"
+                className="inline-block text-xs font-semibold px-4 py-2 rounded-full"
+                style={{ background: "#F97028", color: "#FFFDF6" }}>
+                打开客服对话 →
+              </a>
+            )}
+          </div>
+        </div>
       </div>
     );
   }

@@ -10,6 +10,7 @@ import type { Question, RankingQuestion, LangKey, Scores } from '@/data/question
 import { TYPES, getMeme, getAvatar } from '@/data/types'
 import { trpc } from '@/providers/trpc'
 import { MatchIntro, type EnrollPayload } from '@/components/MatchEnroll'
+import { SiteFooter } from '@/components/SiteFooter'
 import { ProfileForm } from '@/pages/Profile'
 
 type Phase = 'welcome' | 'gender' | 'quiz' | 'rankIntro' | 'rank' | 'result' | 'profile'
@@ -289,6 +290,7 @@ function Welcome({ onStart }: { onStart: () => void }) {
         >
           活动说明与个人信息声明
         </button>
+        <SiteFooter />
       </div>
 
       {notice && (
@@ -670,6 +672,7 @@ function Result({ answers, rankings, timings, gender, sessionId, onRestart, forc
           </button>
           <p className="mt-4 text-xs" style={{ color: '#a3988a' }}>结果仅供自我觉察与娱乐 · 爱情是实践，不是判词</p>
         </div>
+        <SiteFooter />
       </div>
     </div>
   )

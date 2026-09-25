@@ -133,7 +133,7 @@ function AdminLogin({ onOk }: { onOk: () => void }) {
 }
 
 function AdminDesk({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"match" | "visits">("match");
+  const [tab, setTab] = useState<"match" | "airdrop" | "pool" | "merchant" | "ops" | "visits">("match");
   const logout = trpc.responses.adminLogout.useMutation();
 
   return (
@@ -153,12 +153,317 @@ function AdminDesk({ onLogout }: { onLogout: () => void }) {
           </button>
         </div>
       </div>
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-6 flex-wrap">
         <TabBtn active={tab === "match"} onClick={() => setTab("match")}>手动匹配</TabBtn>
+        <TabBtn active={tab === "airdrop"} onClick={() => setTab("airdrop")}>空投队列</TabBtn>
+        <TabBtn active={tab === "pool"} onClick={() => setTab("pool")}>匹配池</TabBtn>
+        <TabBtn active={tab === "merchant"} onClick={() => setTab("merchant")}>商户核销</TabBtn>
+        <TabBtn active={tab === "ops"} onClick={() => setTab("ops")}>运营指标</TabBtn>
         <TabBtn active={tab === "visits"} onClick={() => setTab("visits")}>访问统计</TabBtn>
       </div>
-      {tab === "match" ? <MatchPanel /> : <VisitPanel />}
+      {tab === "match" ? <MatchPanel /> : tab === "airdrop" ? <AirdropPanel /> : tab === "pool" ? <PoolPanel /> : tab === "merchant" ? <MerchantPanel /> : tab === "ops" ? <OpsPanel /> : <VisitPanel />}
     </Shell>
+  );
+}
+
+const MATCH_STATE_LABEL: Record<string, string> = {
+  pending_send: "待确认", sent: "已发送", chatting: "传话中", confirmed: "已确认",
+  declined: "谢绝", dating: "约会中", done: "已完成", cancelled: "已轮空",
+};
+
+function AirdropPanel() {
+  const q = trpc.responses.airdropQueue.useQuery(undefined, { refetchInterval: 20000 });
+  const confirmOne = trpc.responses.confirmAirdrop.useMutation();
+  const confirmAll = trpc.responses.confirmAllAirdrops.useMutation();
+  const utils = trpc.useUtils();
+  const [err, setErr] = useState("");
+
+  const run = async (p: Promise<unknown>) => {
+    setErr("");
+    try { await p; await utils.responses.airdropQueue.invalidate(); } catch (e) { setErr(trpcErrorMessage(e)); }
+  };
+
+  if (q.isLoading) return <p className="text-center py-16 font-display" style={{ color: "#a3988a" }}>加载中…</p>;
+  if (q.error || !q.data) return <p className="text-sm" style={{ color: "#a3988a" }}>暂无数据（需要数据库连接正常）。</p>;
+  const items = q.data.items;
+  const pending = items.filter((i) => i.state === "pending_send");
+
+  return (
+    <>
+      <p className="text-sm mb-4" style={{ color: "#7a7060" }}>
+        本周 {q.data.weekKey} · 共 {items.length} 对 · 待确认 {pending.length} 对。
+        确认后通过月老机器人发给双方（未绑定月老的用户会标注）。
+      </p>
+      {err && <p className="text-sm mb-3 font-semibold" style={{ color: "#F97028" }}>{err}</p>}
+      {pending.length > 0 && (
+        <div className="mb-4">
+          <button
+            onClick={() => run(confirmAll.mutateAsync(undefined))}
+            disabled={confirmAll.isPending}
+            className="font-display text-sm px-5 py-2.5 rounded-full disabled:opacity-50"
+            style={{ background: "#F97028", color: "#FFFDF6" }}
+          >
+            {confirmAll.isPending ? "发送中…" : `一键确认发送全部 ${pending.length} 对`}
+          </button>
+        </div>
+      )}
+      <Card title={`本周配对 · ${items.length}`}>
+        {items.length === 0 && <p className="text-sm" style={{ color: "#a3988a" }}>本周还没有配对（周三 20:00 调度器生成）。</p>}
+        <div className="flex flex-col gap-2">
+          {items.map((i) => (
+            <div key={i.id} className="rounded-2xl p-3 flex items-center justify-between gap-3 flex-wrap" style={{ background: "#FBF3E3" }}>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold" style={{ color: "#121212" }}>
+                  {i.man} × {i.woman}
+                  <span className="ml-2 text-xs font-normal" style={{ color: "#a3988a" }}>{MATCH_STATE_LABEL[i.state] ?? i.state}</span>
+                </p>
+                <p className="text-xs truncate" style={{ color: "#a3988a" }}>
+                  {i.reason ?? ""}
+                  {!i.manBound || !i.womanBound ? ` · ${[!i.manBound && `${i.man}未绑定`, !i.womanBound && `${i.woman}未绑定`].filter(Boolean).join("、")}` : ""}
+                </p>
+              </div>
+              {i.state === "pending_send" && (
+                <button
+                  onClick={() => run(confirmOne.mutateAsync({ id: i.id }))}
+                  disabled={confirmOne.isPending}
+                  className="text-xs px-4 py-2 rounded-full shrink-0 disabled:opacity-50"
+                  style={{ background: "#F97028", color: "#FFFDF6" }}
+                >
+                  确认发送
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </Card>
+    </>
+  );
+}
+
+function PoolPanel() {
+  const q = trpc.responses.poolList.useQuery(undefined, { refetchInterval: 30000 });
+  const setState = trpc.responses.poolSetState.useMutation();
+  const setTag = trpc.responses.poolSetOrgTag.useMutation();
+  const utils = trpc.useUtils();
+  const [err, setErr] = useState("");
+
+  const run = async (p: Promise<unknown>) => {
+    setErr("");
+    try { await p; await utils.responses.poolList.invalidate(); } catch (e) { setErr(trpcErrorMessage(e)); }
+  };
+
+  if (q.isLoading) return <p className="text-center py-16 font-display" style={{ color: "#a3988a" }}>加载中…</p>;
+  if (q.error || !q.data) return <p className="text-sm" style={{ color: "#a3988a" }}>暂无数据（需要数据库连接正常）。</p>;
+
+  return (
+    <>
+      <p className="text-sm mb-4" style={{ color: "#7a7060" }}>
+        报名即自动入池（org_tag 默认 default）。匹配只在同一 org_tag 内发生；差评用户进「复核」。
+      </p>
+      {err && <p className="text-sm mb-3 font-semibold" style={{ color: "#F97028" }}>{err}</p>}
+      <Card title={`匹配池 · ${q.data.length} 人`}>
+        <div className="flex flex-col gap-2">
+          {q.data.map((u) => (
+            <div key={u.profileId} className="rounded-2xl px-3 py-2.5 flex items-center justify-between gap-2 flex-wrap" style={{ background: "#FBF3E3" }}>
+              <p className="text-sm" style={{ color: "#121212" }}>
+                <span className="font-display">{u.name}</span>
+                <span className="text-xs" style={{ color: "#a3988a" }}> · {u.gender} · {u.city} · {u.orgTag}{u.priority > 0 ? ` · 优先${u.priority}` : ""}</span>
+              </p>
+              <div className="flex gap-1.5 items-center">
+                {(["in", "out", "review"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => run(setState.mutateAsync({ profileId: u.profileId, state: s }))}
+                    className="text-xs px-3 py-1.5 rounded-full"
+                    style={{
+                      background: u.state === s ? "#F97028" : "#FFFDF6",
+                      color: u.state === s ? "#FFFDF6" : "#7a7060",
+                    }}
+                  >
+                    {s === "in" ? "在池" : s === "out" ? "出池" : "复核"}
+                  </button>
+                ))}
+                <button
+                  onClick={() => {
+                    const tag = window.prompt("新的 org_tag", u.orgTag);
+                    if (tag && tag.trim()) void run(setTag.mutateAsync({ profileId: u.profileId, orgTag: tag.trim() }));
+                  }}
+                  className="text-xs px-3 py-1.5 rounded-full"
+                  style={{ background: "#FFFDF6", color: "#7a7060" }}
+                >
+                  改标签
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </>
+  );
+}
+
+function MerchantPanel() {
+  const merchants = trpc.responses.merchantsList.useQuery(undefined, { refetchInterval: 30000 });
+  const redemptions = trpc.responses.redemptionsList.useQuery(undefined, { refetchInterval: 30000 });
+  const save = trpc.responses.merchantSave.useMutation();
+  const remove = trpc.responses.merchantRemove.useMutation();
+  const createRed = trpc.responses.redemptionCreate.useMutation();
+  const confirmRed = trpc.responses.redemptionConfirm.useMutation();
+  const settleRed = trpc.responses.redemptionSettle.useMutation();
+  const utils = trpc.useUtils();
+  const [form, setForm] = useState({ name: "", address: "", rebate: "" });
+  const [redForm, setRedForm] = useState({ matchId: "", merchantId: "", note: "" });
+  const [err, setErr] = useState("");
+
+  const run = async (p: Promise<unknown>) => {
+    setErr("");
+    try {
+      await p;
+      await Promise.all([utils.responses.merchantsList.invalidate(), utils.responses.redemptionsList.invalidate()]);
+    } catch (e) { setErr(trpcErrorMessage(e)); }
+  };
+
+  const inputCls = "px-3 py-2 rounded-xl text-sm outline-none";
+  const inputStyle = { background: "#F3ECD2", color: "#121212" };
+
+  return (
+    <>
+      {err && <p className="text-sm mb-3 font-semibold" style={{ color: "#F97028" }}>{err}</p>}
+      <Card title={`合作商户 · ${merchants.data?.length ?? 0}`}>
+        <div className="flex flex-col gap-2 mb-3">
+          {(merchants.data ?? []).map((m) => (
+            <div key={m.id} className="rounded-2xl px-3 py-2.5 flex items-center justify-between gap-2" style={{ background: "#FBF3E3" }}>
+              <p className="text-sm" style={{ color: "#121212" }}>
+                <span className="font-display">{m.name}</span>
+                <span className="text-xs" style={{ color: "#a3988a" }}> · {m.address ?? "无地址"} · 回扣 {(m.rebateCents / 100).toFixed(0)} 元/单 · {m.status === "active" ? "合作中" : "暂停"}</span>
+              </p>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => run(save.mutateAsync({ id: m.id, name: m.name, address: m.address ?? undefined, rebateCents: m.rebateCents, status: m.status === "active" ? "paused" : "active" }))}
+                  className="text-xs px-3 py-1.5 rounded-full" style={{ background: "#FFFDF6", color: "#7a7060" }}
+                >
+                  {m.status === "active" ? "暂停" : "恢复"}
+                </button>
+                <button onClick={() => run(remove.mutateAsync({ id: m.id }))} className="text-xs px-3 py-1.5 rounded-full" style={{ background: "#FFFDF6", color: "#c0392b" }}>删除</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <input className={inputCls} style={inputStyle} placeholder="商户名" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <input className={inputCls} style={inputStyle} placeholder="地址" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+          <input className={inputCls} style={{ ...inputStyle, width: 110 }} placeholder="回扣（元）" type="number" value={form.rebate} onChange={(e) => setForm({ ...form, rebate: e.target.value })} />
+          <button
+            onClick={() => {
+              if (!form.name.trim()) return setErr("请填商户名");
+              void run(save.mutateAsync({ name: form.name.trim(), address: form.address.trim() || undefined, rebateCents: Math.round(parseFloat(form.rebate || "0") * 100), status: "active" }));
+              setForm({ name: "", address: "", rebate: "" });
+            }}
+            className="text-sm px-4 py-2 rounded-full" style={{ background: "#F97028", color: "#FFFDF6" }}
+          >
+            添加商户
+          </button>
+        </div>
+      </Card>
+
+      <Card title={`核销记录 · ${redemptions.data?.length ?? 0}`}>
+        <div className="flex flex-col gap-2 mb-3">
+          {(redemptions.data ?? []).map((r) => (
+            <div key={r.id} className="rounded-2xl px-3 py-2.5 flex items-center justify-between gap-2" style={{ background: "#FBF3E3" }}>
+              <p className="text-sm" style={{ color: "#121212" }}>
+                <span className="font-display">配对#{r.matchId} · {r.merchantName}</span>
+                <span className="text-xs" style={{ color: "#a3988a" }}> · {r.confirmedAt ? "已到店" : "未到店"} · {r.settleStatus === "settled" ? "已结算" : "待结算"}{r.note ? ` · ${r.note}` : ""}</span>
+              </p>
+              <div className="flex gap-1.5">
+                {!r.confirmedAt && (
+                  <button onClick={() => run(confirmRed.mutateAsync({ id: r.id }))} className="text-xs px-3 py-1.5 rounded-full" style={{ background: "#FFFDF6", color: "#7a7060" }}>确认到店</button>
+                )}
+                {r.settleStatus === "pending" && (
+                  <button onClick={() => run(settleRed.mutateAsync({ id: r.id, status: "settled" }))} className="text-xs px-3 py-1.5 rounded-full" style={{ background: "#FFFDF6", color: "#3a7d5c" }}>结算</button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <input className={inputCls} style={{ ...inputStyle, width: 110 }} placeholder="配对 ID" type="number" value={redForm.matchId} onChange={(e) => setRedForm({ ...redForm, matchId: e.target.value })} />
+          <select className={inputCls} style={inputStyle} value={redForm.merchantId} onChange={(e) => setRedForm({ ...redForm, merchantId: e.target.value })}>
+            <option value="">选择商户</option>
+            {(merchants.data ?? []).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+          <input className={inputCls} style={inputStyle} placeholder="备注" value={redForm.note} onChange={(e) => setRedForm({ ...redForm, note: e.target.value })} />
+          <button
+            onClick={() => {
+              const matchId = parseInt(redForm.matchId, 10);
+              const merchantId = parseInt(redForm.merchantId, 10);
+              if (!matchId || !merchantId) return setErr("请填配对 ID 并选择商户");
+              void run(createRed.mutateAsync({ matchId, merchantId, note: redForm.note.trim() || undefined }));
+              setRedForm({ matchId: "", merchantId: "", note: "" });
+            }}
+            className="text-sm px-4 py-2 rounded-full" style={{ background: "#F97028", color: "#FFFDF6" }}
+          >
+            登记核销
+          </button>
+        </div>
+      </Card>
+    </>
+  );
+}
+
+function OpsPanel() {
+  const stats = trpc.responses.opsStats.useQuery(undefined, { refetchInterval: 30000 });
+  const exportOps = trpc.responses.exportOps.useQuery(undefined, { enabled: false });
+
+  const download = (kind: "matches" | "redemptions") => async () => {
+    const res = await exportOps.refetch();
+    if (!res.data) return;
+    const rows = res.data[kind] as Record<string, unknown>[];
+    if (rows.length === 0) return;
+    const header = Object.keys(rows[0]);
+    const lines = [header.join(",")];
+    for (const row of rows) {
+      lines.push(header.map((k) => `"${String(row[k] ?? "").replace(/"/g, '""')}"`).join(","));
+    }
+    const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${kind}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  if (stats.isLoading) return <p className="text-center py-16 font-display" style={{ color: "#a3988a" }}>加载中…</p>;
+  if (stats.error || !stats.data) return <p className="text-sm" style={{ color: "#a3988a" }}>暂无数据（需要数据库连接正常）。</p>;
+  const d = stats.data;
+  const fmt = (v: number | null, suffix = "") => (v === null ? "—" : `${v}${suffix}`);
+  return (
+    <>
+      <p className="text-sm mb-4" style={{ color: "#7a7060" }}>本周 {d.weekKey} · 核心运营指标</p>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <Card title="本周配对"><p className="font-display text-3xl" style={{ color: "#F97028" }}>{d.weeklyPairs} 对</p>
+          <p className="text-xs mt-1" style={{ color: "#a3988a" }}>待确认 {d.pendingSend} · 轮空 {d.cancelled}</p></Card>
+        <Card title="确认率"><p className="font-display text-3xl" style={{ color: "#F97028" }}>{fmt(d.confirmRate, "%")}</p>
+          <p className="text-xs mt-1" style={{ color: "#a3988a" }}>周五零点前确认见面</p></Card>
+        <Card title="成行率"><p className="font-display text-3xl" style={{ color: "#F97028" }}>{fmt(d.meetRate, "%")}</p>
+          <p className="text-xs mt-1" style={{ color: "#a3988a" }}>回访中实际见面占比</p></Card>
+        <Card title="回访均分"><p className="font-display text-3xl" style={{ color: "#F97028" }}>{fmt(d.avgScore)}</p>
+          <p className="text-xs mt-1" style={{ color: "#a3988a" }}>1–5 分</p></Card>
+        <Card title="池内性别比"><p className="font-display text-3xl" style={{ color: "#F97028" }}>{d.poolMen} : {d.poolWomen}</p>
+          <p className="text-xs mt-1" style={{ color: "#a3988a" }}>男 : 女（在池）</p></Card>
+        <Card title="差评待复核"><p className="font-display text-3xl" style={{ color: "#F97028" }}>{d.poolReview} 人</p>
+          <p className="text-xs mt-1" style={{ color: "#a3988a" }}>回访评分 ≤2 自动出池</p></Card>
+      </div>
+      <Card title="运营数据导出">
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={download("matches")} className="font-display text-sm px-5 py-2.5 rounded-full" style={{ background: "#121212", color: "#F3ECD2" }}>
+            导出 matches CSV ↓
+          </button>
+          <button onClick={download("redemptions")} className="font-display text-sm px-5 py-2.5 rounded-full" style={{ background: "#121212", color: "#F3ECD2" }}>
+            导出 redemptions CSV ↓
+          </button>
+        </div>
+      </Card>
+    </>
   );
 }
 
