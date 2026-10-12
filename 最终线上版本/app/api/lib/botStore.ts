@@ -195,6 +195,17 @@ export async function nameMasks() {
   return getDb().select({ id: profiles.id, name: profiles.name }).from(profiles);
 }
 
+/** 本周是否参加匹配：date_prefs 里 participate=true 且是本周存的才算（下周自动失效） */
+export function participatesThisWeek(datePrefs: string | null, weekKey = isoWeekKey()): boolean {
+  if (!datePrefs) return false;
+  try {
+    const parsed = JSON.parse(datePrefs) as { participate?: boolean; weekKey?: string };
+    return parsed.participate === true && parsed.weekKey === weekKey;
+  } catch {
+    return false;
+  }
+}
+
 export async function getProfileById(id: number) {
   await ensureTable();
   const [row] = await getDb().select().from(profiles).where(eq(profiles.id, id));

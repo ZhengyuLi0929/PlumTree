@@ -17,6 +17,8 @@ function asNumberRecord(raw: Record<string, number> | undefined) {
 type Photo = { id: number; url: string };
 
 type DatePrefs = {
+  participate: boolean;
+  weekKey?: string;
   locations: string[];
   activities: string[];
   times: string[];
@@ -44,6 +46,7 @@ type MeData = {
     expectation: string | null;
     value: string | null;
     datePrefs: string | null;
+    participate: boolean;
   };
   quiz: { typeCode: string; gender: string; answers: Record<string, number>; rankings: Record<string, string[]>; timings: Record<string, number> } | null;
   photos: Photo[];
@@ -596,7 +599,7 @@ function Desk({ data, onLogout, preview = false }: { data: MeData; onLogout: () 
 
       <PhotoWall photos={data.photos ?? []} preview={preview} />
       <ProfileCard p={p} preview={preview} />
-      <DatePrefsCard raw={p.datePrefs} preview={preview} />
+      <DatePrefsCard raw={p.datePrefs} participate={p.participate === true} preview={preview} />
       {!preview && <ChangePasswordCard />}
     </Shell>
   );
@@ -753,7 +756,7 @@ function MultiSelect({ label, options, withAll, withMore, values, custom, onChan
   );
 }
 
-function DatePrefsCard({ raw, preview }: { raw: string | null; preview: boolean }) {
+function DatePrefsCard({ raw, participate: initialParticipate, preview }: { raw: string | null; participate: boolean; preview: boolean }) {
   const utils = trpc.useUtils();
   const save = trpc.responses.memberSaveDatePrefs.useMutation();
   const previewSave = trpc.responses.previewUpdate.useMutation();
@@ -764,6 +767,7 @@ function DatePrefsCard({ raw, preview }: { raw: string | null; preview: boolean 
       return {};
     }
   })();
+  const [participate, setParticipate] = useState(initialParticipate);
   const [locations, setLocations] = useState<string[]>(parsed.locations ?? []);
   const [activities, setActivities] = useState<string[]>(parsed.activities ?? []);
   const [times, setTimes] = useState<string[]>(parsed.times ?? []);
@@ -783,6 +787,7 @@ function DatePrefsCard({ raw, preview }: { raw: string | null; preview: boolean 
     if (locations.includes(MORE_OPT) && !customLocation.trim()) return setErr("选择了「更多偏好」就请填写具体地点");
     if (activities.includes(MORE_OPT) && !customActivity.trim()) return setErr("选择了「更多偏好」就请填写具体活动");
     const payload: DatePrefs = {
+      participate,
       locations,
       activities,
       times,
@@ -810,31 +815,58 @@ function DatePrefsCard({ raw, preview }: { raw: string | null; preview: boolean 
     <div className="rounded-3xl p-6 mb-4" style={{ background: "#FFFDF6" }}>
       <h2 className="font-display text-lg mb-1" style={{ color: "#121212" }}>本周约会倾向</h2>
       <p className="text-xs mb-4" style={{ color: "#a3988a" }}>告诉月老你这周想去哪、想做什么、什么时候有空。</p>
-      <MultiSelect
-        label="倾向的见面地点（可多选）"
-        options={DATE_LOCATIONS}
-        withAll
-        withMore
-        values={locations}
-        custom={customLocation}
-        onChange={(v, c) => { setLocations(v); setCustomLocation(c); }}
-      />
-      <MultiSelect
-        label="倾向的约会活动（可多选）"
-        options={DATE_ACTIVITIES}
-        withAll
-        withMore
-        values={activities}
-        custom={customActivity}
-        onChange={(v, c) => { setActivities(v); setCustomActivity(c); }}
-      />
-      <MultiSelect
-        label="倾向的约会时间（可多选）"
-        options={DATE_TIMES}
-        values={times}
-        custom=""
-        onChange={(v) => setTimes(v)}
-      />
+      {/* 参加开关：默认不参加，手动打开才进本周匹配；下周自动回到不参加 */}
+      <div
+        className="flex items-center justify-between rounded-2xl p-4 mb-4"
+        style={{ background: participate ? "#EAF5EE" : "#FBF3E3" }}
+      >
+        <div>
+          <p className="text-sm font-semibold" style={{ color: "#121212" }}>参加本周约会匹配</p>
+          <p className="text-xs mt-0.5" style={{ color: "#7a7060" }}>
+            {participate ? "已参加：本周三会给你排一位对象" : "默认不参加，打开开关才会被排进本周匹配（下周一自动关闭）"}
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={participate}
+          onClick={() => setParticipate(!participate)}
+          className="relative w-14 h-8 rounded-full transition-colors shrink-0"
+          style={{ background: participate ? "#3a7d5c" : "#E8DCC0" }}
+        >
+          <span
+            className="absolute top-1 w-6 h-6 rounded-full transition-all"
+            style={{ left: participate ? "calc(100% - 28px)" : "4px", background: "#FFFDF6", boxShadow: "0 1px 4px rgba(18,18,18,0.2)" }}
+          />
+        </button>
+      </div>
+      <div style={{ opacity: participate ? 1 : 0.45, pointerEvents: participate ? "auto" : "none" }}>
+        <MultiSelect
+          label="倾向的见面地点（可多选）"
+          options={DATE_LOCATIONS}
+          withAll
+          withMore
+          values={locations}
+          custom={customLocation}
+          onChange={(v, c) => { setLocations(v); setCustomLocation(c); }}
+        />
+        <MultiSelect
+          label="倾向的约会活动（可多选）"
+          options={DATE_ACTIVITIES}
+          withAll
+          withMore
+          values={activities}
+          custom={customActivity}
+          onChange={(v, c) => { setActivities(v); setCustomActivity(c); }}
+        />
+        <MultiSelect
+          label="倾向的约会时间（可多选）"
+          options={DATE_TIMES}
+          values={times}
+          custom=""
+          onChange={(v) => setTimes(v)}
+        />
+      </div>
       {err && <p className="text-sm mb-2" style={{ color: "#9a3412" }}>{err}</p>}
       <button
         type="button"

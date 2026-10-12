@@ -80,6 +80,9 @@ async function schedulerTest() {
   const restorePool = () => db.update(matchPool).set({ state: "in" }).where(eq(matchPool.state, "out"));
 
   // 6 个测试用户入池（3 男 3 女，同 org_tag）
+  // 周三 20:30 CST = 12:30 UTC（提前算周键，写入「参加本周」开关）
+  const wed = new Date("2026-09-23T12:30:00Z");
+  const week = isoWeekKey(wed);
   const profs = [];
   for (let i = 0; i < 6; i++) {
     const gender = i % 2 === 0 ? "男" : "女";
@@ -87,14 +90,12 @@ async function schedulerTest() {
       sessionId: `sched-test-${i}`, name: `调度测试${i}`, wechat: `wx_sched_${i}`, phone: "",
       gender, birthYear: 1997, city: "北京", gradClass: "2016届1班",
       intro: "测试介绍三十个字测试介绍三十个字测试介绍三十个字", consentAt: new Date(),
+      datePrefs: JSON.stringify({ participate: true, weekKey: week }),
     });
     profs.push({ id: Number(res[0].insertId), gender });
   }
   for (const p of profs) await db.insert(matchPool).values({ profileId: p.id, gender: p.gender, orgTag: "sched-test" });
 
-  // 周三 20:30 CST = 12:30 UTC
-  const wed = new Date("2026-09-23T12:30:00Z");
-  const week = isoWeekKey(wed);
   assert("周三晚生成配对", (await tick(wed)) === "matched");
   const weekMatches = await db.select().from(matches).where(eq(matches.weekKey, week));
   assert("3 对待确认", weekMatches.length === 3 && weekMatches.every((m) => m.state === "pending_send"));

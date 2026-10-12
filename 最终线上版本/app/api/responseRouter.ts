@@ -8,6 +8,7 @@ import { logAudit } from "./lib/audit";
 import { setPoolState } from "./lib/botStore";
 import { addPhoto, listPhotos, removePhoto } from "./lib/photos";
 import { moveCredential, setPassword, verifyPassword } from "./lib/credentials";
+import { participatesThisWeek } from "./lib/botStore";
 import {
   isoWeekKey,
   isValidInvite,
@@ -78,6 +79,7 @@ async function previewMember() {
       expectation: "温和、有自己的事做、愿意沟通。",
       value: "互相尊重，不冷暴力。",
       datePrefs: null as string | null,
+      participate: false as boolean,
     },
     quiz: {
       typeCode: "FSRH",
@@ -128,6 +130,7 @@ async function previewMember() {
           value: saved.value,
           datePrefs: saved.datePrefs,
         } as typeof base.profile; // 可空列落到预览档案，前端已判空
+        (base.profile as { participate?: boolean }).participate = participatesThisWeek(saved.datePrefs);
       }
     }
   } catch {
@@ -612,6 +615,7 @@ export const responseRouter = createRouter({
         expectation: profile.expectation,
         value: profile.value,
         datePrefs: profile.datePrefs,
+        participate: participatesThisWeek(profile.datePrefs),
       },
       photos: await listPhotos(profile.id),
       quiz: quiz
@@ -698,10 +702,11 @@ export const responseRouter = createRouter({
       return { ok: true };
     }),
 
-  /** 保存本周约会倾向（地点/活动/时间多选 + 自定义文本） */
+  /** 保存本周约会倾向（地点/活动/时间多选 + 自定义文本 + 是否参加本周） */
   memberSaveDatePrefs: publicQuery
     .input(
       z.object({
+        participate: z.boolean(),
         locations: z.array(z.string().max(32)).max(17),
         activities: z.array(z.string().max(32)).max(5),
         times: z.array(z.string().max(16)).max(6),
@@ -711,7 +716,11 @@ export const responseRouter = createRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const profile = await requireMemberProfile(ctx.req);
-      await getDb().update(profiles).set({ datePrefs: JSON.stringify(input) }).where(eq(profiles.id, profile.id));
+      // 倾向按周生效：存当前周键，下周自动失效回到「不参加」
+      await getDb()
+        .update(profiles)
+        .set({ datePrefs: JSON.stringify({ ...input, weekKey: isoWeekKey() }) })
+        .where(eq(profiles.id, profile.id));
       return { ok: true };
     }),
 
@@ -741,6 +750,7 @@ export const responseRouter = createRouter({
           .optional(),
         datePrefs: z
           .object({
+            participate: z.boolean().optional(),
             locations: z.array(z.string().max(32)).max(17),
             activities: z.array(z.string().max(32)).max(5),
             times: z.array(z.string().max(16)).max(6),
@@ -756,7 +766,7 @@ export const responseRouter = createRouter({
       const db = getDb();
       const [existing] = await db.select().from(profiles).where(eq(profiles.sessionId, PREVIEW_SESSION));
       const patch: Record<string, unknown> = { ...(input.profile ?? {}) };
-      if (input.datePrefs) patch.datePrefs = JSON.stringify(input.datePrefs);
+      if (input.datePrefs) patch.datePrefs = JSON.stringify({ ...input.datePrefs, weekKey: isoWeekKey() });
       if (existing) {
         if (Object.keys(patch).length) await db.update(profiles).set(patch).where(eq(profiles.id, existing.id));
       } else {
@@ -1072,6 +1082,7 @@ export const responseRouter = createRouter({
       orgTag: p.orgTag,
       state: p.state,
       priority: p.priority,
+      participate: participatesThisWeek(profOf.get(p.profileId)?.datePrefs ?? null),
     }));
   }),
 

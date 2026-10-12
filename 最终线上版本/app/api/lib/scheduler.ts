@@ -2,7 +2,7 @@
 // 周三 20:00 生成配对进待确认队列（matched）；周五 00:00 未确认轮空（dating）；
 // 周一 10:00 回访（feedback）。所有动作落 cron_logs。tick(now) 注入时间，便于压缩时间测试。
 import { computeMatches, type PoolUser } from "./matching";
-import { chatFactsForMatching } from "./botStore";
+import { chatFactsForMatching, participatesThisWeek } from "./botStore";
 import {
   bumpPoolPriority,
   getCycle,
@@ -39,8 +39,12 @@ export async function runWeeklyMatching(weekKey: string) {
   const bySession = new Map<string, string>();
   for (const r of quizRows) bySession.set(r.sessionId, r.typeCode);
 
-  // 资料未补全（快速注册先留空 birthYear/city）的用户不参与匹配
-  const complete = poolWithProfiles.filter(({ profile }) => profile.birthYear != null && profile.city);
+  // 资料未补全（快速注册先留空 birthYear/city）的用户不参与匹配；
+  // 未在 /me 打开「参加本周约会」开关的用户也不参与（开关按周生效）
+  const complete = poolWithProfiles.filter(
+    ({ profile }) =>
+      profile.birthYear != null && profile.city && participatesThisWeek(profile.datePrefs, weekKey),
+  );
   const users: PoolUser[] = complete.map(({ pool, profile }) => ({
     profileId: profile.id,
     name: profile.name,

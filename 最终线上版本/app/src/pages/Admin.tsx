@@ -267,7 +267,7 @@ function PoolPanel() {
             <div key={u.profileId} className="rounded-2xl px-3 py-2.5 flex items-center justify-between gap-2 flex-wrap" style={{ background: "#FBF3E3" }}>
               <p className="text-sm" style={{ color: "#121212" }}>
                 <span className="font-display">{u.name}</span>
-                <span className="text-xs" style={{ color: "#a3988a" }}> · {u.gender} · {u.city} · {u.orgTag}{u.priority > 0 ? ` · 优先${u.priority}` : ""}</span>
+                <span className="text-xs" style={{ color: "#a3988a" }}> · {u.gender} · {u.city} · {u.orgTag}{u.priority > 0 ? ` · 优先${u.priority}` : ""}{u.participate ? " · ✅本周参加" : ""}</span>
               </p>
               <div className="flex gap-1.5 items-center">
                 {(["in", "out", "review"] as const).map((s) => (
