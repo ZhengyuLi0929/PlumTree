@@ -259,3 +259,11 @@ export const photos = mysqlTable("photos", {
   size: int("size").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+/** 会员初始/自改密码（临时登录方式；手机号唯一键）。回滚短信登录时此表停用 */
+export const memberCredentials = mysqlTable("member_credentials", {
+  phone: varchar("phone", { length: 20 }).primaryKey(),
+  passwordHash: varchar("password_hash", { length: 64 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});

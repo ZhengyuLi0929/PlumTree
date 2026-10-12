@@ -231,6 +231,12 @@ const DDL = [
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_photos_profile (profile_id)
   )`,
+  `CREATE TABLE IF NOT EXISTS member_credentials (
+    phone varchar(20) NOT NULL PRIMARY KEY,
+    password_hash varchar(64) NOT NULL,
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  )`,
 ];
 
 export async function ensureTable() {

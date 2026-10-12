@@ -7,6 +7,7 @@ import { responses, responsesV2, responsesV3, profiles, matchPairs, visits, matc
 import { logAudit } from "./lib/audit";
 import { setPoolState } from "./lib/botStore";
 import { addPhoto, listPhotos, removePhoto } from "./lib/photos";
+import { moveCredential, setPassword, verifyPassword } from "./lib/credentials";
 import {
   isoWeekKey,
   isValidInvite,
@@ -507,6 +508,54 @@ export const responseRouter = createRouter({
     return { ok: true };
   }),
 
+  /** 临时登录方式：姓名 + 手机号 + 初始密码（密码由组织者手动发放） */
+  memberLoginPassword: publicQuery
+    .input(
+      z.object({
+        name: z.string().trim().min(1).max(64),
+        phone: z.string().min(11).max(20),
+        password: z.string().min(6).max(64),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const phone = normalizePhone(input.phone);
+      if (!PHONE_RE.test(phone)) fail("BAD_REQUEST", "请填写有效的大陆手机号");
+      await ensureTable();
+      const db = getDb();
+      const people = await db.select().from(profiles).where(eq(profiles.phone, phone));
+      const named = people.filter((p) => p.name.trim() === input.name.trim());
+      const profile = named.sort((a, b) => b.id - a.id)[0]; // 重复报名以最新一条为准
+      if (!profile) fail("NOT_FOUND", "姓名和手机号对不上报名记录");
+      const ok = await verifyPassword(phone, input.password);
+      if (ok === null) fail("PRECONDITION_FAILED", "还没有给你发初始密码，请联系组织者获取");
+      if (!ok) fail("UNAUTHORIZED", "密码不对，再试一次");
+      ctx.resHeaders.append("Set-Cookie", memberCookieHeader(await signMember(phone)));
+      return { ok: true, name: profile.name };
+    }),
+
+  /** 登录后改密码：校验旧密码，新密码 8-32 位且字母+数字 */
+  memberChangePassword: publicQuery
+    .input(
+      z.object({
+        oldPassword: z.string().min(1).max(64),
+        newPassword: z
+          .string()
+          .min(8, "新密码至少 8 位")
+          .max(32, "新密码最多 32 位")
+          .regex(/^(?=.*[a-zA-Z])(?=.*\d)[\x21-\x7e]+$/, "新密码要同时包含字母和数字"),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const profile = await requireMemberProfile(ctx.req);
+      const phone = profile.phone;
+      if (!phone) fail("PRECONDITION_FAILED", "你的档案还没有手机号，请先补全");
+      const ok = await verifyPassword(phone, input.oldPassword);
+      if (ok === null) fail("PRECONDITION_FAILED", "还没有初始密码记录，请联系组织者");
+      if (!ok) fail("UNAUTHORIZED", "原密码不对");
+      await setPassword(phone, input.newPassword);
+      return { ok: true };
+    }),
+
   memberMe: publicQuery
     .input(z.object({ preview: z.boolean().optional() }).optional())
     .query(async ({ input, ctx }) => {
@@ -639,8 +688,11 @@ export const responseRouter = createRouter({
         fail("BAD_REQUEST", "期望出生年范围下限不能大于上限");
       }
       await getDb().update(profiles).set(patch).where(eq(profiles.id, profile.id));
-      // 手机号换了：登录态跟着新手机号走
+      // 手机号换了：登录态和密码凭证都跟着新手机号走
       if (typeof patch.phone === "string" && patch.phone) {
+        if (profile.phone && profile.phone !== patch.phone) {
+          await moveCredential(profile.phone, patch.phone);
+        }
         ctx.resHeaders.append("Set-Cookie", memberCookieHeader(await signMember(patch.phone)));
       }
       return { ok: true };

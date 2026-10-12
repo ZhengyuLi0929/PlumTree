@@ -69,36 +69,19 @@ export default function Me() {
   return <Desk data={me.data as MeData} onLogout={() => void me.refetch()} />;
 }
 
-/* ---------- 登录（姓名+手机号+验证码，两步） ---------- */
+/* ---------- 登录（姓名+手机号+密码；短信验证码方式保留在后端，回滚时恢复） ---------- */
 function Login({ onOk }: { onOk: () => void }) {
-  const sendCode = trpc.responses.sendLoginCode.useMutation();
-  const verify = trpc.responses.verifyLoginCode.useMutation();
-  const [step, setStep] = useState<"info" | "code">("info");
+  const login = trpc.responses.memberLoginPassword.useMutation();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
-  const ready = name.trim().length > 0 && phone.length === 11;
-  const devCode = import.meta.env.DEV
-    ? (sendCode.data as { ok?: boolean; devCode?: string } | undefined)?.devCode
-    : undefined;
-
-  const send = () => {
-    setErr("");
-    // 后端在并行扩展为按 {name, phone} 校验；断言保证两边类型都能编译
-    sendCode.mutate(
-      { name: name.trim(), phone } as Parameters<typeof sendCode.mutate>[0],
-      {
-        onSuccess: () => setStep("code"),
-        onError: (error) => setErr(trpcErrorMessage(error)),
-      },
-    );
-  };
+  const ready = name.trim().length > 0 && phone.length === 11 && password.length >= 6;
 
   const submit = () => {
     setErr("");
-    verify.mutate(
-      { phone, code: code.trim(), name: name.trim() } as Parameters<typeof verify.mutate>[0],
+    login.mutate(
+      { name: name.trim(), phone, password },
       {
         onSuccess: onOk,
         onError: (error) => setErr(trpcErrorMessage(error)),
@@ -111,79 +94,52 @@ function Login({ onOk }: { onOk: () => void }) {
       <div className="max-w-md mx-auto rounded-3xl p-8" style={{ background: "#FFFDF6" }}>
         <p className="font-display text-xs tracking-widest mb-2" style={{ color: "#F97028" }}>同桌的TA</p>
         <h1 className="font-display text-3xl mb-2" style={{ color: "#121212" }}>查看我的结果</h1>
-        {step === "info" ? (
-          <>
-            <p className="text-sm mb-6" style={{ color: "#7a7060" }}>
-              用报名时填的姓名和手机号登录，我们会发一条短信验证码。登录后只能看到你自己的测验和个人资料。
-            </p>
-            <label className="block text-xs mb-1" style={{ color: "#a3988a" }}>姓名</label>
-            <input
-              className="w-full rounded-2xl px-4 py-3 mb-4 outline-none"
-              style={{ background: "#FBF6EC", border: "1px solid #E8DCC0" }}
-              maxLength={64}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="报名时填的姓名"
-            />
-            <label className="block text-xs mb-1" style={{ color: "#a3988a" }}>手机号</label>
-            <input
-              className="w-full rounded-2xl px-4 py-3 mb-4 outline-none"
-              style={{ background: "#FBF6EC", border: "1px solid #E8DCC0" }}
-              inputMode="numeric"
-              maxLength={11}
-              value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
-              placeholder="11 位大陆手机号"
-            />
-            {err && <p className="text-sm mb-3" style={{ color: "#9a3412" }}>{err}</p>}
-            <button
-              type="button"
-              disabled={sendCode.isPending || !ready}
-              className="w-full font-display text-lg py-3 rounded-full"
-              style={{ background: "#F97028", color: "#FFFDF6", opacity: ready ? 1 : 0.5 }}
-              onClick={send}
-            >
-              {sendCode.isPending ? "发送中…" : "发送验证码"}
-            </button>
-          </>
-        ) : (
-          <>
-            <p className="text-sm mb-6" style={{ color: "#7a7060" }}>
-              验证码已发送到 {phone}，10 分钟内有效。
-            </p>
-            <label className="block text-xs mb-1" style={{ color: "#a3988a" }}>验证码</label>
-            <input
-              className="w-full rounded-2xl px-4 py-3 mb-2 outline-none"
-              style={{ background: "#FBF6EC", border: "1px solid #E8DCC0" }}
-              inputMode="numeric"
-              maxLength={6}
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="6 位数字验证码"
-            />
-            {devCode && (
-              <p className="text-xs mb-2" style={{ color: "#F97028" }}>DEV 验证码：{devCode}</p>
-            )}
-            {err && <p className="text-sm mb-3" style={{ color: "#9a3412" }}>{err}</p>}
-            <button
-              type="button"
-              disabled={verify.isPending || code.length !== 6}
-              className="w-full font-display text-lg py-3 rounded-full"
-              style={{ background: "#F97028", color: "#FFFDF6", opacity: code.length === 6 ? 1 : 0.5 }}
-              onClick={submit}
-            >
-              {verify.isPending ? "登录中…" : "登录"}
-            </button>
-            <button
-              type="button"
-              onClick={() => { setStep("info"); setCode(""); setErr(""); }}
-              className="block w-full text-center text-xs mt-3 underline underline-offset-4"
-              style={{ color: "#7a7060" }}
-            >
-              返回修改姓名 / 手机号
-            </button>
-          </>
-        )}
+        <p className="text-sm mb-6" style={{ color: "#7a7060" }}>
+          用报名时填的姓名和手机号，加上组织者发给你的 8 位密码登录。登录后只能看到你自己的测验和个人资料。
+        </p>
+        <label className="block text-xs mb-1" style={{ color: "#a3988a" }}>姓名</label>
+        <input
+          className="w-full rounded-2xl px-4 py-3 mb-4 outline-none"
+          style={{ background: "#FBF6EC", border: "1px solid #E8DCC0" }}
+          maxLength={64}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="报名时填的姓名"
+        />
+        <label className="block text-xs mb-1" style={{ color: "#a3988a" }}>手机号</label>
+        <input
+          className="w-full rounded-2xl px-4 py-3 mb-4 outline-none"
+          style={{ background: "#FBF6EC", border: "1px solid #E8DCC0" }}
+          inputMode="numeric"
+          maxLength={11}
+          value={phone}
+          onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
+          placeholder="11 位大陆手机号"
+        />
+        <label className="block text-xs mb-1" style={{ color: "#a3988a" }}>密码</label>
+        <input
+          className="w-full rounded-2xl px-4 py-3 mb-2 outline-none"
+          style={{ background: "#FBF6EC", border: "1px solid #E8DCC0" }}
+          type="password"
+          maxLength={32}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="组织者发给你的 8 位密码"
+          onKeyDown={(e) => { if (e.key === "Enter" && ready) submit(); }}
+        />
+        {err && <p className="text-sm mb-3" style={{ color: "#9a3412" }}>{err}</p>}
+        <button
+          type="button"
+          disabled={login.isPending || !ready}
+          className="w-full font-display text-lg py-3 rounded-full mt-2"
+          style={{ background: "#F97028", color: "#FFFDF6", opacity: ready ? 1 : 0.5 }}
+          onClick={submit}
+        >
+          {login.isPending ? "登录中…" : "登录"}
+        </button>
+        <p className="text-xs text-center mt-3" style={{ color: "#a3988a" }}>
+          还没有密码？找组织者领取你的初始密码。
+        </p>
         <Link to="/" className="block text-center text-xs mt-4 underline underline-offset-4" style={{ color: "#7a7060" }}>
           返回测试
         </Link>
@@ -641,7 +597,61 @@ function Desk({ data, onLogout, preview = false }: { data: MeData; onLogout: () 
       <PhotoWall photos={data.photos ?? []} preview={preview} />
       <ProfileCard p={p} preview={preview} />
       <DatePrefsCard raw={p.datePrefs} preview={preview} />
+      {!preview && <ChangePasswordCard />}
     </Shell>
+  );
+}
+
+/* ---------- 修改密码 ---------- */
+function ChangePasswordCard() {
+  const change = trpc.responses.memberChangePassword.useMutation();
+  const [oldPw, setOldPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [newPw2, setNewPw2] = useState("");
+  const [err, setErr] = useState("");
+  const [toast, setToast] = useState("");
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flash = (msg: string) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 2500);
+  };
+
+  const submit = () => {
+    setErr("");
+    if (newPw !== newPw2) return setErr("两次输入的新密码不一致");
+    change.mutate(
+      { oldPassword: oldPw, newPassword: newPw },
+      {
+        onSuccess: () => { setOldPw(""); setNewPw(""); setNewPw2(""); flash("密码已更新，下次登录用新密码"); },
+        onError: (e) => setErr(trpcErrorMessage(e, "修改失败")),
+      },
+    );
+  };
+
+  const inputCls = "w-full px-4 py-3 rounded-xl text-sm outline-none";
+  const inputStyle = { background: "#F3ECD2", color: "#121212" };
+  return (
+    <div className="rounded-3xl p-6 mb-4" style={{ background: "#FFFDF6" }}>
+      <h2 className="font-display text-lg mb-1" style={{ color: "#121212" }}>修改密码</h2>
+      <p className="text-xs mb-4" style={{ color: "#a3988a" }}>初始密码是组织者发的；改成你自己的，之后用手机号+新密码登录。</p>
+      <div className="flex flex-col gap-3">
+        <input type="password" className={inputCls} style={inputStyle} placeholder="原密码" value={oldPw} onChange={(e) => setOldPw(e.target.value)} maxLength={32} />
+        <input type="password" className={inputCls} style={inputStyle} placeholder="新密码（8-32 位，字母+数字）" value={newPw} onChange={(e) => setNewPw(e.target.value)} maxLength={32} />
+        <input type="password" className={inputCls} style={inputStyle} placeholder="再输一遍新密码" value={newPw2} onChange={(e) => setNewPw2(e.target.value)} maxLength={32} />
+        {err && <p className="text-sm" style={{ color: "#9a3412" }}>{err}</p>}
+        <button
+          type="button"
+          onClick={submit}
+          disabled={change.isPending || !oldPw || !newPw}
+          className="w-full font-display text-base py-3 rounded-full disabled:opacity-50"
+          style={{ background: "#121212", color: "#F3ECD2" }}
+        >
+          {change.isPending ? "提交中…" : "保存新密码"}
+        </button>
+      </div>
+      <Toast msg={toast} />
+    </div>
   );
 }
 
