@@ -50,7 +50,8 @@ type MeData = {
 };
 
 export default function Me() {
-  const preview = import.meta.env.DEV && new URLSearchParams(window.location.search).get("preview") === "1";
+  // 预览口令：/me?preview=142857（线上也可查看；写库只在本地开发环境生效）
+  const preview = new URLSearchParams(window.location.search).get("preview") === "142857";
   // 未登录/登录过期的失败立即落到登录页，不再白等一个 retry 周期
   const me = trpc.responses.memberMe.useQuery(preview ? { preview: true } : undefined, {
     retry: preview
@@ -374,7 +375,8 @@ function ProfileCard({ p, preview }: { p: MeData["profile"]; preview: boolean })
     if (phone && !/^\d{11}$/.test(phone)) return setErr("手机号是 11 位数字");
 
     if (preview) {
-      // 预览模式也真的写库：落到本地 preview-session 档案（仅开发环境可用）
+      // 本地开发：预览也真写库（preview-session 档案）；线上预览：只读查看
+      if (!import.meta.env.DEV) return flash("预览模式，仅供查看，不会保存");
       previewSave.mutate(
         {
           profile: {
@@ -566,7 +568,7 @@ function Desk({ data, onLogout, preview = false }: { data: MeData; onLogout: () 
       <div className="flex items-center justify-between mb-4">
         <Link to="/" className="text-sm underline underline-offset-4" style={{ color: "#7a7060" }}>返回测试</Link>
         {preview ? (
-          <span className="text-xs" style={{ color: "#F97028" }}>本地预览，未登录</span>
+          <span className="text-xs" style={{ color: "#F97028" }}>预览模式</span>
         ) : (
           <button type="button" onClick={() => logout.mutate()} className="text-sm" style={{ color: "#7a7060" }}>退出</button>
         )}
@@ -779,6 +781,7 @@ function DatePrefsCard({ raw, preview }: { raw: string | null; preview: boolean 
       customActivity: customActivity.trim() || undefined,
     };
     if (preview) {
+      if (!import.meta.env.DEV) return flash("预览模式，仅供查看，不会保存");
       previewSave.mutate(
         { datePrefs: payload },
         {

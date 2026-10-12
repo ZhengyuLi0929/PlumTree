@@ -79,7 +79,7 @@ async function previewMember() {
       datePrefs: null as string | null,
     },
     quiz: {
-      typeCode: "ISRH",
+      typeCode: "FSRH",
       gender: "女",
       answers,
       rankings: { rank1: order, rank2: order, rank3: order },
@@ -511,7 +511,7 @@ export const responseRouter = createRouter({
     .input(z.object({ preview: z.boolean().optional() }).optional())
     .query(async ({ input, ctx }) => {
     if (input?.preview) {
-      if (env.isProduction) fail("FORBIDDEN", "预览只在本地开发打开");
+      // 预览对所有人开放（纯假数据 + 本地 preview 档案），但 previewUpdate 写库仍只在开发环境
       return await previewMember();
     }
     const token = memberTokenFromRequest(ctx.req);
