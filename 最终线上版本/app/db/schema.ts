@@ -267,3 +267,10 @@ export const memberCredentials = mysqlTable("member_credentials", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+/** 键值配置（DeepSeek 匹配 prompt、最近一次匹配结果等） */
+export const settings = mysqlTable("settings", {
+  key: varchar("key", { length: 64 }).primaryKey(),
+  value: text("value"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});

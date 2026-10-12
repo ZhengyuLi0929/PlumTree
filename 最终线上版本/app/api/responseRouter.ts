@@ -528,7 +528,21 @@ export const responseRouter = createRouter({
       const people = await db.select().from(profiles).where(eq(profiles.phone, phone));
       const named = people.filter((p) => p.name.trim() === input.name.trim());
       const profile = named.sort((a, b) => b.id - a.id)[0]; // 重复报名以最新一条为准
-      if (!profile) fail("NOT_FOUND", "姓名和手机号对不上报名记录");
+      if (!profile) {
+        // 名单外的人（报了名但没手机号记录）：第一次登录，填什么手机号就用什么，
+        // 输入的密码直接成为 TA 的密码（冷启动，熟人场不验证）
+        const byName = await db
+          .select()
+          .from(profiles)
+          .where(and(eq(profiles.name, input.name.trim()), eq(profiles.phone, "")));
+        const first = byName.sort((a, b) => b.id - a.id)[0];
+        if (!first) fail("NOT_FOUND", "姓名和手机号对不上报名记录");
+        if (input.password.length < 8) fail("BAD_REQUEST", "第一次登录请设置至少 8 位密码（以后就用它登录）");
+        await db.update(profiles).set({ phone }).where(eq(profiles.id, first.id));
+        await setPassword(phone, input.password);
+        ctx.resHeaders.append("Set-Cookie", memberCookieHeader(await signMember(phone)));
+        return { ok: true, name: first.name, created: true };
+      }
       const ok = await verifyPassword(phone, input.password);
       if (ok === null) fail("PRECONDITION_FAILED", "还没有给你发初始密码，请联系组织者获取");
       if (!ok) fail("UNAUTHORIZED", "密码不对，再试一次");
@@ -1190,7 +1204,47 @@ export const responseRouter = createRouter({
       return { ok: true };
     }),
 
-  // 运营数据导出（matches / redemptions，延续 export 的模式）
+  // ===== DeepSeek 匹配后台 =====
+
+  dsGetPrompt: publicQuery.query(async ({ ctx }) => {
+    await requireAdmin(ctx.req);
+    const { getSetting, DEFAULT_DS_PROMPT, DS_PROMPT_KEY } = await import("./lib/dsMatch");
+    const saved = await getSetting(DS_PROMPT_KEY);
+    return { prompt: saved ?? DEFAULT_DS_PROMPT, isDefault: !saved };
+  }),
+
+  dsSetPrompt: publicQuery
+    .input(z.object({ prompt: z.string().min(100).max(8000) }))
+    .mutation(async ({ input, ctx }) => {
+      await requireAdmin(ctx.req);
+      const { setSetting, DS_PROMPT_KEY } = await import("./lib/dsMatch");
+      await setSetting(DS_PROMPT_KEY, input.prompt);
+      await logAudit("admin", "dsMatch.setPrompt", undefined, `长度 ${input.prompt.length}`);
+      return { ok: true };
+    }),
+
+  dsRunMatch: publicQuery.mutation(async ({ ctx }) => {
+    await requireAdmin(ctx.req);
+    const { runDeepseekMatch, matchJobStatus } = await import("./lib/dsMatch");
+    if (matchJobStatus().state === "running") fail("CONFLICT", "匹配任务正在运行中");
+    void runDeepseekMatch(); // 后台跑，状态走 dsMatchStatus 轮询
+    await logAudit("admin", "dsMatch.run");
+    return { ok: true };
+  }),
+
+  dsMatchStatus: publicQuery.query(async ({ ctx }) => {
+    await requireAdmin(ctx.req);
+    const { matchJobStatus } = await import("./lib/dsMatch");
+    return matchJobStatus();
+  }),
+
+  dsMatchResult: publicQuery.query(async ({ ctx }) => {
+    await requireAdmin(ctx.req);
+    const { getSetting, DS_RESULT_KEY } = await import("./lib/dsMatch");
+    const raw = await getSetting(DS_RESULT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }),
+
   exportOps: publicQuery.query(async ({ ctx }) => {
     await requireAdmin(ctx.req);
     await ensureTable();

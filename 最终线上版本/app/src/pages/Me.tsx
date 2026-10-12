@@ -141,7 +141,7 @@ function Login({ onOk }: { onOk: () => void }) {
           {login.isPending ? "登录中…" : "登录"}
         </button>
         <p className="text-xs text-center mt-3" style={{ color: "#a3988a" }}>
-          还没有密码？找组织者领取你的初始密码。
+          还没有密码？找组织者领取初始密码。名单外第一次登录的同学：输入的手机号和密码会直接成为登录方式。
         </p>
         <Link to="/" className="block text-center text-xs mt-4 underline underline-offset-4" style={{ color: "#7a7060" }}>
           返回测试

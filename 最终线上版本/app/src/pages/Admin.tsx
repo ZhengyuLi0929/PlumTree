@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { trpc } from "@/providers/trpc";
 import { trpcErrorMessage } from "@/lib/errors";
@@ -133,7 +133,7 @@ function AdminLogin({ onOk }: { onOk: () => void }) {
 }
 
 function AdminDesk({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"match" | "airdrop" | "pool" | "merchant" | "ops" | "visits">("match");
+  const [tab, setTab] = useState<"match" | "dsmatch" | "airdrop" | "pool" | "merchant" | "ops" | "visits">("match");
   const logout = trpc.responses.adminLogout.useMutation();
 
   return (
@@ -155,14 +155,191 @@ function AdminDesk({ onLogout }: { onLogout: () => void }) {
       </div>
       <div className="flex gap-2 mb-6 flex-wrap">
         <TabBtn active={tab === "match"} onClick={() => setTab("match")}>手动匹配</TabBtn>
+        <TabBtn active={tab === "dsmatch"} onClick={() => setTab("dsmatch")}>开始匹配</TabBtn>
         <TabBtn active={tab === "airdrop"} onClick={() => setTab("airdrop")}>空投队列</TabBtn>
         <TabBtn active={tab === "pool"} onClick={() => setTab("pool")}>匹配池</TabBtn>
         <TabBtn active={tab === "merchant"} onClick={() => setTab("merchant")}>商户核销</TabBtn>
         <TabBtn active={tab === "ops"} onClick={() => setTab("ops")}>运营指标</TabBtn>
         <TabBtn active={tab === "visits"} onClick={() => setTab("visits")}>访问统计</TabBtn>
       </div>
-      {tab === "match" ? <MatchPanel /> : tab === "airdrop" ? <AirdropPanel /> : tab === "pool" ? <PoolPanel /> : tab === "merchant" ? <MerchantPanel /> : tab === "ops" ? <OpsPanel /> : <VisitPanel />}
+      {tab === "match" ? <MatchPanel /> : tab === "dsmatch" ? <DsMatchPanel /> : tab === "airdrop" ? <AirdropPanel /> : tab === "pool" ? <PoolPanel /> : tab === "merchant" ? <MerchantPanel /> : tab === "ops" ? <OpsPanel /> : <VisitPanel />}
     </Shell>
+  );
+}
+
+/* ================= DeepSeek 匹配 ================= */
+type DsPair = { man: string; woman: string; manSat: number; womanSat: number; harmony: number; manReasons: string[]; womanReasons: string[] };
+type DsResult = {
+  ranAt: string;
+  eligibleCount: number;
+  globalSum: number;
+  droppedDuplicates: { name: string; keptWechat: string; droppedWechat: string }[];
+  skippedCount: { 异地: number; 同班: number };
+  globalPairs: DsPair[];
+  localMen: { person: string; best: string | null; harmony: number; manSat: number; womanSat: number; manReasons: string[]; womanReasons: string[] }[];
+  localWomen: { person: string; best: string | null; harmony: number; manSat: number; womanSat: number; manReasons: string[]; womanReasons: string[] }[];
+  unmatchedMen: string[];
+  unmatchedWomen: string[];
+};
+
+function PairRow({ p, rank }: { p: DsPair; rank?: number }) {
+  const [open, setOpen] = useState(false);
+  const hot = p.harmony >= 75;
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: hot ? "#FFF1E8" : "#FBF3E3" }}>
+      <button type="button" onClick={() => setOpen(!open)} className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left">
+        <p className="text-sm font-semibold" style={{ color: "#121212" }}>
+          {rank ? <span style={{ color: "#F97028" }}>{rank}. </span> : null}
+          {p.man} × {p.woman}
+        </p>
+        <p className="text-xs shrink-0" style={{ color: "#a3988a" }}>
+          男 <b style={{ color: "#F97028" }}>{p.manSat}</b> · 女 <b style={{ color: "#F97028" }}>{p.womanSat}</b> · 和谐 <b style={{ color: hot ? "#F97028" : "#3d3830" }}>{p.harmony}</b> {open ? "▲" : "▼"}
+        </p>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 grid md:grid-cols-2 gap-3 text-xs leading-relaxed" style={{ color: "#5a5347" }}>
+          <div className="rounded-xl p-3" style={{ background: "#FFFDF6" }}>
+            <p className="font-display mb-1" style={{ color: "#F97028" }}>男方视角</p>
+            {p.manReasons.map((r, i) => <p key={i} className="mb-1">{["初见", "一个月", "长期"][i]}：{r}</p>)}
+          </div>
+          <div className="rounded-xl p-3" style={{ background: "#FFFDF6" }}>
+            <p className="font-display mb-1" style={{ color: "#F489A3" }}>女方视角</p>
+            {p.womanReasons.map((r, i) => <p key={i} className="mb-1">{["初见", "一个月", "长期"][i]}：{r}</p>)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DsMatchPanel() {
+  const promptQ = trpc.responses.dsGetPrompt.useQuery();
+  const setPrompt = trpc.responses.dsSetPrompt.useMutation();
+  const run = trpc.responses.dsRunMatch.useMutation();
+  const status = trpc.responses.dsMatchStatus.useQuery(undefined, { refetchInterval: 4000 });
+  const running = status.data?.state === "running";
+  const result = trpc.responses.dsMatchResult.useQuery(undefined, { refetchInterval: running ? 8000 : false });
+  const utils = trpc.useUtils();
+  const [text, setText] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    if (promptQ.data && !text) setText(promptQ.data.prompt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promptQ.data]);
+
+  const data = result.data as DsResult | null;
+  const start = () => {
+    setErr("");
+    run.mutate(undefined, {
+      onSuccess: () => { void utils.responses.dsMatchStatus.invalidate(); void utils.responses.dsMatchResult.invalidate(); },
+      onError: (e) => setErr(trpcErrorMessage(e)),
+    });
+  };
+
+  return (
+    <>
+      <Card title="匹配提示词（改完记得保存）">
+        <p className="text-xs mb-2" style={{ color: "#7a7060" }}>
+          占位符：{"{role_label} / {self_id} / {self_card} / {candidates}"} 会被自动替换。{promptQ.data?.isDefault ? "当前是默认提示词。" : "当前是自定义提示词。"}
+        </p>
+        <textarea
+          className="w-full rounded-xl p-3 text-xs leading-relaxed outline-none"
+          style={{ background: "#F3ECD2", color: "#121212", minHeight: 220, resize: "vertical" }}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <div className="flex gap-2 mt-3 flex-wrap">
+          <button
+            onClick={() => {
+              setSaved(false);
+              setPrompt.mutate({ prompt: text }, { onSuccess: () => setSaved(true), onError: (e) => setErr(trpcErrorMessage(e)) });
+            }}
+            disabled={setPrompt.isPending || !text}
+            className="text-sm px-5 py-2.5 rounded-full disabled:opacity-50"
+            style={{ background: "#F97028", color: "#FFFDF6" }}
+          >
+            {setPrompt.isPending ? "保存中…" : saved ? "✓ 已保存" : "保存提示词"}
+          </button>
+          <button
+            onClick={() => { void promptQ.refetch().then((r) => { if (r.data) setText(r.data.prompt); }); }}
+            className="text-sm px-5 py-2.5 rounded-full"
+            style={{ background: "#F3ECD2", color: "#7a7060" }}
+          >
+            还原成线上保存的版本
+          </button>
+          <button
+            onClick={start}
+            disabled={running || run.isPending}
+            className="font-display text-sm px-6 py-2.5 rounded-full disabled:opacity-50"
+            style={{ background: "#121212", color: "#F3ECD2" }}
+          >
+            {running ? `匹配中… ${status.data?.done ?? 0}/${status.data?.total ?? "?"}` : "开始匹配"}
+          </button>
+        </div>
+        {err && <p className="text-sm mt-2" style={{ color: "#9a3412" }}>{err}</p>}
+        {running && (
+          <div className="mt-3 h-3 rounded-full overflow-hidden" style={{ background: "#E8DCC0" }}>
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${status.data?.total ? Math.round((status.data.done / status.data.total) * 100) : 0}%`, background: "linear-gradient(90deg, #F97028, #F489A3)" }}
+            />
+          </div>
+        )}
+        {status.data?.state === "error" && <p className="text-sm mt-2" style={{ color: "#9a3412" }}>上次运行失败：{status.data.error}</p>}
+      </Card>
+
+      {data ? (
+        <>
+          <p className="text-sm mb-4" style={{ color: "#7a7060" }}>
+            上次运行：{new Date(data.ranAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })} · 有效评分对 {data.eligibleCount} · 全局 {data.globalPairs.length} 对（和谐分和 {data.globalSum}） · 硬过滤：异地 {data.skippedCount.异地} / 同班 {data.skippedCount.同班}
+          </p>
+          {data.droppedDuplicates.length > 0 && (
+            <Card title={`去重（丢掉较早的重复报名）· ${data.droppedDuplicates.length}`}>
+              {data.droppedDuplicates.map((d, i) => (
+                <p key={i} className="text-xs mb-1" style={{ color: "#7a7060" }}>{d.name}：保留 {d.keptWechat}，丢弃 {d.droppedWechat}</p>
+              ))}
+            </Card>
+          )}
+          <Card title={`全局最优配对 · ${data.globalPairs.length} 对`}>
+            <div className="flex flex-col gap-2">
+              {data.globalPairs.map((p, i) => <PairRow key={i} p={p} rank={i + 1} />)}
+            </div>
+          </Card>
+          <div className="grid md:grid-cols-2 gap-4">
+            <Card title={`男生各自最想配 · ${data.localMen.length}`}>
+              <div className="flex flex-col gap-2">
+                {data.localMen.map((p, i) => (
+                  <p key={i} className="text-sm" style={{ color: "#3d3830" }}>
+                    {p.person} → {p.best ?? "（无同城不同班候选人）"}
+                    {p.best ? <span className="text-xs" style={{ color: "#a3988a" }}> · {p.harmony}</span> : null}
+                  </p>
+                ))}
+              </div>
+            </Card>
+            <Card title={`女生各自最想配 · ${data.localWomen.length}`}>
+              <div className="flex flex-col gap-2">
+                {data.localWomen.map((p, i) => (
+                  <p key={i} className="text-sm" style={{ color: "#3d3830" }}>
+                    {p.person} → {p.best ?? "（无同城不同班候选人）"}
+                    {p.best ? <span className="text-xs" style={{ color: "#a3988a" }}> · {p.harmony}</span> : null}
+                  </p>
+                ))}
+              </div>
+            </Card>
+          </div>
+          {(data.unmatchedMen.length > 0 || data.unmatchedWomen.length > 0) && (
+            <Card title="本轮未配上">
+              <p className="text-sm mb-1" style={{ color: "#7a7060" }}>男生：{data.unmatchedMen.join("、") || "无"}</p>
+              <p className="text-sm" style={{ color: "#7a7060" }}>女生：{data.unmatchedWomen.join("、") || "无"}</p>
+            </Card>
+          )}
+        </>
+      ) : (
+        <p className="text-sm" style={{ color: "#a3988a" }}>还没有跑过匹配。保存提示词后点「开始匹配」。</p>
+      )}
+    </>
   );
 }
 
