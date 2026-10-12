@@ -376,6 +376,22 @@ export const responseRouter = createRouter({
       return { ok: true };
     }),
 
+  // 姓名+手机号登录（不发短信验证码，直接对报名记录）
+  memberLoginByName: publicQuery
+    .input(z.object({ name: z.string().trim().min(1).max(64), phone: z.string().min(11).max(20) }))
+    .mutation(async ({ input, ctx }) => {
+      const phone = normalizePhone(input.phone);
+      if (!PHONE_RE.test(phone)) fail("BAD_REQUEST", "请填写有效的大陆手机号");
+      await ensureTable();
+      const db = getDb();
+      const people = await db.select().from(profiles).where(eq(profiles.phone, phone));
+      const named = people.filter((p) => p.name.trim() === input.name);
+      const profile = named.sort((a, b) => b.id - a.id)[0];
+      if (!profile) fail("NOT_FOUND", "姓名和手机号对不上报名记录");
+      ctx.resHeaders.append("Set-Cookie", memberCookieHeader(await signMember(phone)));
+      return { ok: true, name: profile.name };
+    }),
+
   memberLogout: publicQuery.mutation(async ({ ctx }) => {
     ctx.resHeaders.append("Set-Cookie", clearMemberCookieHeader());
     return { ok: true };

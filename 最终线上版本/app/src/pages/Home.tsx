@@ -274,18 +274,25 @@ function Welcome({ onStart }: { onStart: () => void }) {
           最后，领取你在 16 种恋爱人格里的专属花名。
         </p>
 
-        <button onClick={onStart}
-          className="font-display text-xl px-12 py-4 rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
-          style={{ background: '#F97028', color: '#FFFDF6', boxShadow: '0 8px 24px rgba(249,112,40,0.4)' }}>
-          开始测试 →
-        </button>
+        <div className="flex gap-3 justify-center flex-wrap items-center">
+          <button onClick={onStart}
+            className="font-display text-xl px-12 py-4 rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
+            style={{ background: '#F97028', color: '#FFFDF6', boxShadow: '0 8px 24px rgba(249,112,40,0.4)' }}>
+            开始测试 →
+          </button>
+          <div className="flex flex-col items-center gap-1.5">
+            <Link to="/me"
+              className="font-display text-base px-8 py-3.5 rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
+              style={{ background: '#FFFDF6', color: '#F97028', border: '2px solid #F97028' }}>
+              我已报名，登录查看
+            </Link>
+            <span className="text-xs" style={{ color: '#a3988a' }}>用报名时填的姓名 + 手机号登录</span>
+          </div>
+        </div>
 
         <p className="mt-6 text-xs" style={{ color: '#a3988a' }}>
           凭直觉作答，所有题目都没有对错 · 结果仅供自我觉察与娱乐
         </p>
-        <Link to="/me" className="inline-block mt-3 text-sm underline underline-offset-4" style={{ color: '#7a7060' }}>
-          已经测过？用手机号登录
-        </Link>
         <button
           type="button"
           onClick={() => setNotice(true)}
