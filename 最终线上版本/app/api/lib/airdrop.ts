@@ -9,7 +9,7 @@ import { wednesdayAirdropSms } from "./smsMatch";
 
 function cardOf(p: typeof profiles.$inferSelect, typeCode: string | null) {
   return [
-    `${p.birthYear} 年生`,
+    p.birthYear != null ? `${p.birthYear} 年生` : null,
     p.city,
     p.job || null,
     p.height ? `身高 ${p.height}cm` : null,

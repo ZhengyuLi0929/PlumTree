@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
+  <defs>
+    <linearGradient id="bg-ENFP" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5DBA8E"/>
+      <stop offset="100%" stop-color="#F8CD8F"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="240" rx="44" fill="url(#bg-ENFP)"/>
+  <polygon points="120,34 187.5,73 120,112 52.5,73" fill="#FFFDF6" opacity="0.16"/>
+  <polygon points="52.5,73 120,112 120,190 52.5,151" fill="#FFFDF6" opacity="0.09"/>
+  <polygon points="187.5,73 120,112 120,190 187.5,151" fill="#FFFDF6" opacity="0.05"/>
+  <circle cx="204" cy="36" r="52" fill="#FFFDF6" opacity="0.10"/>
+  <circle cx="30" cy="212" r="62" fill="#FFFDF6" opacity="0.08"/>
+  <text x="120" y="103" text-anchor="middle" font-family="'ZCOOL KuaiLe','PingFang SC','Hiragino Sans GB',sans-serif" font-size="54" font-weight="700" letter-spacing="3" fill="#FFFDF6" style="filter:drop-shadow(0 2px 5px rgba(18,18,18,0.28))">EN</text>
+  <text x="120" y="159" text-anchor="middle" font-family="'ZCOOL KuaiLe','PingFang SC','Hiragino Sans GB',sans-serif" font-size="54" font-weight="700" letter-spacing="3" fill="#FFFDF6" style="filter:drop-shadow(0 2px 5px rgba(18,18,18,0.28))">FP</text>
+  <text x="120" y="205" text-anchor="middle" font-family="'ZCOOL KuaiLe','PingFang SC','Hiragino Sans GB',sans-serif" font-size="19" letter-spacing="4" fill="#FFFDF6" opacity="0.94">竞选者</text>
+</svg>

@@ -12,9 +12,9 @@ type User = {
   wechat: string;
   phone: string;
   gender: string;
-  birthYear: number;
-  city: string;
-  gradClass: string;
+  birthYear: number | null;
+  city: string | null;
+  gradClass: string | null;
   mbti: string | null;
   height: number | null;
   job: string | null;
@@ -642,7 +642,7 @@ function UserDialog({
         </div>
         <Row label="微信" value={user.wechat} />
         <Row label="性别" value={user.gender} />
-        <Row label="城市 / 出生年 / 届别" value={`${user.city} · ${user.birthYear} · ${user.gradClass}`} />
+        <Row label="城市 / 出生年 / 届别" value={`${user.city ?? "—"} · ${user.birthYear ?? "—"} · ${user.gradClass ?? "—"}`} />
         <Row label="MBTI / 身高" value={[user.mbti, user.height].filter(Boolean).join(" · ")} />
         <Row label="职业" value={user.job} />
         <Row

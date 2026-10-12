@@ -55,10 +55,12 @@ export const profiles = mysqlTable("profiles", {
   wechat: varchar("wechat", { length: 64 }).notNull(),
   phone: varchar("phone", { length: 20 }).notNull(),
   gender: varchar("gender", { length: 8 }).notNull(),
-  birthYear: int("birth_year").notNull(),
-  city: varchar("city", { length: 64 }).notNull(),
-  /** 毕业届别和班级，如 "2016届3班" */
-  gradClass: varchar("grad_class", { length: 64 }).notNull(),
+  /** 快速注册可空，/me 补全 */
+  birthYear: int("birth_year"),
+  /** 快速注册可空，/me 补全 */
+  city: varchar("city", { length: 64 }),
+  /** 毕业届别和班级，如 "2016届3班"；快速注册可空，/me 补全 */
+  gradClass: varchar("grad_class", { length: 64 }),
   mbti: varchar("mbti", { length: 8 }),
   height: int("height"),
   /** 职业/行业 */

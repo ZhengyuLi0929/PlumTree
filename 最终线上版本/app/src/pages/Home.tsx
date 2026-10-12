@@ -10,6 +10,7 @@ import {
 import type { Question, RankingQuestion, LangKey, Scores } from '@/data/questions'
 import { TYPES, getMeme, getAvatar } from '@/data/types'
 import { trpc } from '@/providers/trpc'
+import { trpcErrorMessage } from '@/lib/errors'
 import { MatchIntro, type EnrollPayload } from '@/components/MatchEnroll'
 import { SiteFooter } from '@/components/SiteFooter'
 import { ProfileForm } from '@/pages/Profile'
@@ -286,7 +287,6 @@ function Welcome({ onStart }: { onStart: () => void }) {
               style={{ background: '#FFFDF6', color: '#F97028', border: '2px solid #F97028' }}>
               我已报名，登录查看
             </Link>
-            <span className="text-xs" style={{ color: '#a3988a' }}>用报名时填的姓名 + 手机号登录</span>
           </div>
         </div>
 
@@ -480,6 +480,13 @@ function RankScreen({ q, step, total, onDone }: {
   )
 }
 
+const DIM_EXPLAIN: Record<string, string> = {
+  FI: '亲密距离（F=融合 / I=独立）：你更看重亲密无间还是自我空间。融合=恋爱里黏人、想时刻在一起；独立=需要自己的空间。',
+  SG: '真爱来源（S=火花 / G=养成）：你更信一见钟情还是日久生情。火花=看感觉，第一眼定生死；养成=感情是处出来的。',
+  RP: '价值取向（R=浪漫 / P=务实）：你更看重仪式感还是过日子。浪漫=惊喜和心意不能少；务实=柴米油盐才靠谱。',
+  HC: '冲突风格（H=热处理 / C=冷处理）：闹矛盾时，你倾向当场说清还是先冷静。热处理=今晚必须聊明白；冷处理=先暂停再谈。',
+}
+
 function DimBarList({
   keys,
   dimValues,
@@ -494,6 +501,7 @@ function DimBarList({
         const v = dimValues[key]
         if (!d || !v) return null
         const leftWin = v.left >= v.right
+        const explain = DIM_EXPLAIN[d.key]
         return (
           <div key={d.key}>
             <div className="flex justify-between text-sm font-semibold mb-1.5">
@@ -509,6 +517,9 @@ function DimBarList({
               <div className="h-full animate-bar" style={{ width: `${v.left}%`, background: leftWin ? '#F97028' : '#E8DCC0' }} />
               <div className="h-full animate-bar flex-1" style={{ background: !leftWin ? '#F489A3' : 'transparent' }} />
             </div>
+            {explain && (
+              <p className="mt-1 text-xs leading-relaxed" style={{ color: '#a3988a' }}>{explain}</p>
+            )}
           </div>
         )
       })}
@@ -617,6 +628,9 @@ function Result({ answers, rankings, timings, gender, sessionId, onRestart, forc
           />
         </div>
 
+        {/* 保存结果（demo 模式不展示，避免误导提交） */}
+        {!IS_DEMO && <SaveResultCard sessionId={sessionId} />}
+
         <Section title="你的四维配比">
           <DimBarList keys={['FI', 'SG', 'RP', 'HC']} dimValues={dimValues} />
         </Section>
@@ -684,6 +698,168 @@ function Result({ answers, rankings, timings, gender, sessionId, onRestart, forc
           <p className="mt-4 text-xs" style={{ color: '#a3988a' }}>结果仅供自我觉察与娱乐 · 爱情是实践，不是判词</p>
         </div>
         <SiteFooter />
+      </div>
+    </div>
+  )
+}
+
+/* ================= 保存结果（注册会员，随时回看） ================= */
+function SaveResultCard({ sessionId }: { sessionId: string }) {
+  const sendCode = trpc.responses.sendLoginCode.useMutation()
+  const register = trpc.responses.memberRegister.useMutation()
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [agreed, setAgreed] = useState(false)
+  const [codeSent, setCodeSent] = useState(false)
+  const [code, setCode] = useState('')
+  const [devCode, setDevCode] = useState('')
+  const [err, setErr] = useState('')
+
+  const canSend = name.trim().length > 0 && phone.length === 11 && agreed
+  const canFinish = agreed && code.length === 6
+
+  const onSend = () => {
+    setErr('')
+    sendCode.mutate(
+      { name: name.trim(), phone },
+      {
+        onSuccess: (res) => {
+          setCodeSent(true)
+          setCode('')
+          if (import.meta.env.DEV && res.devCode) setDevCode(res.devCode)
+        },
+        onError: (e) => setErr(trpcErrorMessage(e)),
+      },
+    )
+  }
+
+  const onFinish = () => {
+    setErr('')
+    register.mutate(
+      { sessionId, name: name.trim(), phone, code, consent: true },
+      {
+        onSuccess: () => { window.location.href = '/me' },
+        onError: (e) => setErr(trpcErrorMessage(e)),
+      },
+    )
+  }
+
+  const reset = () => {
+    setCodeSent(false)
+    setCode('')
+    setDevCode('')
+    setErr('')
+  }
+
+  const inputCls = 'w-full px-4 py-3 rounded-xl text-sm outline-none'
+  const inputStyle = { background: '#F3ECD2', color: '#121212' }
+
+  return (
+    <div className="rounded-3xl p-6 mb-4 animate-pop"
+      style={{ background: '#FFFDF6', boxShadow: '0 6px 24px rgba(18,18,18,0.06)' }}>
+      <p className="font-display text-xs tracking-widest mb-2" style={{ color: '#F97028' }}>同桌的TA · 会员</p>
+      <h3 className="font-display text-2xl mb-3" style={{ color: '#121212' }}>保存结果，随时查看</h3>
+      <p className="text-sm leading-relaxed mb-5" style={{ color: '#7a7060' }}>
+        留下姓名和手机号，就能随时在「我的」页面回看测验结果、完善资料并跟进匹配进度。
+      </p>
+
+      <div className="flex flex-col gap-3">
+        <label className="text-sm font-semibold" style={{ color: '#3d3830' }}>
+          姓名
+          <input
+            className={`${inputCls} mt-1.5`}
+            style={inputStyle}
+            value={name}
+            maxLength={64}
+            disabled={codeSent}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="你的姓名"
+          />
+        </label>
+        <label className="text-sm font-semibold" style={{ color: '#3d3830' }}>
+          手机号
+          <input
+            className={`${inputCls} mt-1.5`}
+            style={inputStyle}
+            value={phone}
+            inputMode="numeric"
+            maxLength={11}
+            disabled={codeSent}
+            onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+            placeholder="11 位大陆手机号"
+          />
+        </label>
+
+        <label className="flex items-start gap-2 text-xs leading-relaxed cursor-pointer select-none" style={{ color: '#7a7060' }}>
+          <input
+            type="checkbox"
+            checked={agreed}
+            disabled={codeSent}
+            onChange={(e) => setAgreed(e.target.checked)}
+            className="mt-0.5"
+            style={{ accentColor: '#F97028' }}
+          />
+          <span>
+            我已阅读并同意
+            <Link to="/privacy" target="_blank" className="underline underline-offset-4" style={{ color: '#F97028' }}>《隐私政策》</Link>
+          </span>
+        </label>
+
+        {!codeSent && (
+          <button
+            type="button"
+            onClick={onSend}
+            disabled={!canSend || sendCode.isPending}
+            className="font-display text-lg py-3.5 rounded-full transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+            style={{ background: '#F97028', color: '#FFFDF6' }}
+          >
+            {sendCode.isPending ? '发送中…' : '发送验证码'}
+          </button>
+        )}
+
+        {codeSent && (
+          <>
+            <label className="text-sm font-semibold" style={{ color: '#3d3830' }}>
+              验证码
+              <input
+                className={`${inputCls} mt-1.5 tracking-[0.3em]`}
+                style={inputStyle}
+                value={code}
+                inputMode="numeric"
+                maxLength={6}
+                autoComplete="one-time-code"
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="6 位数字验证码"
+              />
+            </label>
+            {devCode && (
+              <p className="text-xs font-semibold" style={{ color: '#F97028' }}>开发模式验证码：{devCode}</p>
+            )}
+            <button
+              type="button"
+              onClick={onFinish}
+              disabled={!canFinish || register.isPending}
+              className="font-display text-lg py-3.5 rounded-full transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+              style={{ background: '#F97028', color: '#FFFDF6' }}
+            >
+              {register.isPending ? '正在完成…' : '完成并查看'}
+            </button>
+            <div className="flex justify-between text-xs font-semibold">
+              <button type="button" onClick={reset} style={{ color: '#a3988a' }}>← 重新填写</button>
+              <button
+                type="button"
+                onClick={onSend}
+                disabled={sendCode.isPending}
+                className="disabled:opacity-50"
+                style={{ color: '#F97028' }}
+              >
+                {sendCode.isPending ? '发送中…' : '没收到？重新发送'}
+              </button>
+            </div>
+          </>
+        )}
+
+        {err && <p className="text-sm" style={{ color: '#9a3412' }}>{err}</p>}
       </div>
     </div>
   )

@@ -5,6 +5,7 @@ import { trpcErrorMessage } from "@/lib/errors";
 import { TYPES, getAvatar, getMeme } from "@/data/types";
 import { DIM_META, LOVE_LANGUAGES, type LangKey } from "@/data/questions";
 import { computeScoresFinal } from "@/data/questions-final";
+import { MBTI_TYPES } from "@/data/mbti";
 
 function asNumberRecord(raw: Record<string, number> | undefined) {
   const out: Record<number, number> = {};
@@ -40,7 +41,15 @@ type MeData = {
 
 export default function Me() {
   const preview = import.meta.env.DEV && new URLSearchParams(window.location.search).get("preview") === "1";
-  const me = trpc.responses.memberMe.useQuery(preview ? { preview: true } : undefined, { retry: preview ? 0 : 1 });
+  // 未登录/登录过期的失败立即落到登录页，不再白等一个 retry 周期
+  const me = trpc.responses.memberMe.useQuery(preview ? { preview: true } : undefined, {
+    retry: preview
+      ? 0
+      : (failureCount, error) => {
+          if (error.message.includes("登录") || error.data?.code === "UNAUTHORIZED") return false;
+          return failureCount < 1;
+        },
+  });
   if (preview && me.data) return <Desk data={me.data as MeData} onLogout={() => { window.location.href = "/me"; }} preview />;
   if (me.isLoading) {
     return <Shell><p className="text-center py-20 font-display" style={{ color: "#a3988a" }}>加载中…</p></Shell>;
@@ -49,63 +58,124 @@ export default function Me() {
   return <Desk data={me.data as MeData} onLogout={() => void me.refetch()} />;
 }
 
-/* ---------- 登录 ---------- */
+/* ---------- 登录（姓名+手机号+验证码，两步） ---------- */
 function Login({ onOk }: { onOk: () => void }) {
-  const login = trpc.responses.memberLoginByName.useMutation();
+  const sendCode = trpc.responses.sendLoginCode.useMutation();
+  const verify = trpc.responses.verifyLoginCode.useMutation();
+  const [step, setStep] = useState<"info" | "code">("info");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
   const [err, setErr] = useState("");
   const ready = name.trim().length > 0 && phone.length === 11;
+  const devCode = import.meta.env.DEV
+    ? (sendCode.data as { ok?: boolean; devCode?: string } | undefined)?.devCode
+    : undefined;
+
+  const send = () => {
+    setErr("");
+    // 后端在并行扩展为按 {name, phone} 校验；断言保证两边类型都能编译
+    sendCode.mutate(
+      { name: name.trim(), phone } as Parameters<typeof sendCode.mutate>[0],
+      {
+        onSuccess: () => setStep("code"),
+        onError: (error) => setErr(trpcErrorMessage(error)),
+      },
+    );
+  };
+
+  const submit = () => {
+    setErr("");
+    verify.mutate(
+      { phone, code: code.trim(), name: name.trim() } as Parameters<typeof verify.mutate>[0],
+      {
+        onSuccess: onOk,
+        onError: (error) => setErr(trpcErrorMessage(error)),
+      },
+    );
+  };
 
   return (
     <Shell>
       <div className="max-w-md mx-auto rounded-3xl p-8" style={{ background: "#FFFDF6" }}>
         <p className="font-display text-xs tracking-widest mb-2" style={{ color: "#F97028" }}>同桌的TA</p>
         <h1 className="font-display text-3xl mb-2" style={{ color: "#121212" }}>查看我的结果</h1>
-        <p className="text-sm mb-6" style={{ color: "#7a7060" }}>用报名时填的姓名和手机号登录。登录后只能看到你自己的测验和个人资料。</p>
-        <label className="block text-xs mb-1" style={{ color: "#a3988a" }}>姓名</label>
-        <input
-          className="w-full rounded-2xl px-4 py-3 mb-4 outline-none"
-          style={{ background: "#FBF6EC", border: "1px solid #E8DCC0" }}
-          maxLength={64}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="报名时填的姓名"
-        />
-        <label className="block text-xs mb-1" style={{ color: "#a3988a" }}>手机号</label>
-        <input
-          className="w-full rounded-2xl px-4 py-3 mb-4 outline-none"
-          style={{ background: "#FBF6EC", border: "1px solid #E8DCC0" }}
-          inputMode="numeric"
-          maxLength={11}
-          value={phone}
-          onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
-          placeholder="11 位大陆手机号"
-        />
-        {err && <p className="text-sm mb-3" style={{ color: "#9a3412" }}>{err}</p>}
-        <button
-          type="button"
-          disabled={login.isPending || !ready}
-          className="w-full font-display text-lg py-3 rounded-full"
-          style={{ background: "#F97028", color: "#FFFDF6", opacity: ready ? 1 : 0.5 }}
-          onClick={() => {
-            setErr("");
-            login.mutate({ name: name.trim(), phone }, {
-              onSuccess: onOk,
-              onError: (error) => setErr(trpcErrorMessage(error)),
-            });
-          }}
-        >
-          {login.isPending ? "登录中…" : "登录"}
-        </button>
+        {step === "info" ? (
+          <>
+            <p className="text-sm mb-6" style={{ color: "#7a7060" }}>
+              用报名时填的姓名和手机号登录，我们会发一条短信验证码。登录后只能看到你自己的测验和个人资料。
+            </p>
+            <label className="block text-xs mb-1" style={{ color: "#a3988a" }}>姓名</label>
+            <input
+              className="w-full rounded-2xl px-4 py-3 mb-4 outline-none"
+              style={{ background: "#FBF6EC", border: "1px solid #E8DCC0" }}
+              maxLength={64}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="报名时填的姓名"
+            />
+            <label className="block text-xs mb-1" style={{ color: "#a3988a" }}>手机号</label>
+            <input
+              className="w-full rounded-2xl px-4 py-3 mb-4 outline-none"
+              style={{ background: "#FBF6EC", border: "1px solid #E8DCC0" }}
+              inputMode="numeric"
+              maxLength={11}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
+              placeholder="11 位大陆手机号"
+            />
+            {err && <p className="text-sm mb-3" style={{ color: "#9a3412" }}>{err}</p>}
+            <button
+              type="button"
+              disabled={sendCode.isPending || !ready}
+              className="w-full font-display text-lg py-3 rounded-full"
+              style={{ background: "#F97028", color: "#FFFDF6", opacity: ready ? 1 : 0.5 }}
+              onClick={send}
+            >
+              {sendCode.isPending ? "发送中…" : "发送验证码"}
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-sm mb-6" style={{ color: "#7a7060" }}>
+              验证码已发送到 {phone}，10 分钟内有效。
+            </p>
+            <label className="block text-xs mb-1" style={{ color: "#a3988a" }}>验证码</label>
+            <input
+              className="w-full rounded-2xl px-4 py-3 mb-2 outline-none"
+              style={{ background: "#FBF6EC", border: "1px solid #E8DCC0" }}
+              inputMode="numeric"
+              maxLength={6}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="6 位数字验证码"
+            />
+            {devCode && (
+              <p className="text-xs mb-2" style={{ color: "#F97028" }}>DEV 验证码：{devCode}</p>
+            )}
+            {err && <p className="text-sm mb-3" style={{ color: "#9a3412" }}>{err}</p>}
+            <button
+              type="button"
+              disabled={verify.isPending || code.length !== 6}
+              className="w-full font-display text-lg py-3 rounded-full"
+              style={{ background: "#F97028", color: "#FFFDF6", opacity: code.length === 6 ? 1 : 0.5 }}
+              onClick={submit}
+            >
+              {verify.isPending ? "登录中…" : "登录"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setStep("info"); setCode(""); setErr(""); }}
+              className="block w-full text-center text-xs mt-3 underline underline-offset-4"
+              style={{ color: "#7a7060" }}
+            >
+              返回修改姓名 / 手机号
+            </button>
+          </>
+        )}
         <Link to="/" className="block text-center text-xs mt-4 underline underline-offset-4" style={{ color: "#7a7060" }}>
           返回测试
         </Link>
-        {import.meta.env.DEV && (
-          <Link to="/me?preview=1" className="block text-center text-sm mt-3" style={{ color: "#F97028" }}>
-            内部预览界面
-          </Link>
-        )}
       </div>
     </Shell>
   );
@@ -129,17 +199,24 @@ function ArtText({ children, size = "1.4rem" }: { children: React.ReactNode; siz
   );
 }
 
-/* ---------- 照片墙（最多 9 张） ---------- */
+/* ---------- 照片墙（最多 9 张；预览模式只进本地 state，不调接口） ---------- */
 function PhotoWall({ photos, preview }: { photos: Photo[]; preview: boolean }) {
   const utils = trpc.useUtils();
   const upload = trpc.responses.memberUploadPhoto.useMutation();
   const remove = trpc.responses.memberDeletePhoto.useMutation();
   const fileRef = useRef<HTMLInputElement>(null);
+  const localId = useRef(0);
   const [err, setErr] = useState("");
-  const left = 9 - photos.length;
+  const [localPhotos, setLocalPhotos] = useState<Photo[]>([]);
+  const allPhotos = preview ? [...photos, ...localPhotos] : photos;
+  const left = 9 - allPhotos.length;
 
   const pick = async (file: File) => {
     setErr("");
+    if (preview) {
+      setLocalPhotos((list) => [...list, { id: -(++localId.current), url: URL.createObjectURL(file) }]);
+      return;
+    }
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result));
@@ -156,6 +233,20 @@ function PhotoWall({ photos, preview }: { photos: Photo[]; preview: boolean }) {
     );
   };
 
+  const drop = (p: Photo) => {
+    setErr("");
+    if (p.id < 0) {
+      URL.revokeObjectURL(p.url);
+      setLocalPhotos((list) => list.filter((x) => x.id !== p.id));
+      return;
+    }
+    if (preview) return;
+    remove.mutate({ id: p.id }, {
+      onSuccess: () => void utils.responses.memberMe.invalidate(),
+      onError: (e) => setErr(trpcErrorMessage(e, "删除失败")),
+    });
+  };
+
   return (
     <div className="rounded-3xl p-6 mb-4" style={{ background: "#FFFDF6" }}>
       <div className="flex items-baseline justify-between mb-3">
@@ -163,19 +254,14 @@ function PhotoWall({ photos, preview }: { photos: Photo[]; preview: boolean }) {
         <span className="text-xs" style={{ color: "#a3988a" }}>最多 9 张，还能传 {left} 张</span>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        {photos.map((p) => (
+        {allPhotos.map((p) => (
           <div key={p.id} className="relative aspect-square rounded-2xl overflow-hidden" style={{ background: "#F3ECD2" }}>
             <img src={p.url} alt="" className="w-full h-full object-cover" />
-            {!preview && (
+            {(!preview || p.id < 0) && (
               <button
                 type="button"
                 aria-label="删除"
-                onClick={() =>
-                  remove.mutate({ id: p.id }, {
-                    onSuccess: () => void utils.responses.memberMe.invalidate(),
-                    onError: (e) => setErr(trpcErrorMessage(e, "删除失败")),
-                  })
-                }
+                onClick={() => drop(p)}
                 className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full text-xs"
                 style={{ background: "rgba(18,18,18,0.55)", color: "#FFFDF6" }}
               >
@@ -184,7 +270,7 @@ function PhotoWall({ photos, preview }: { photos: Photo[]; preview: boolean }) {
             )}
           </div>
         ))}
-        {!preview && left > 0 && (
+        {left > 0 && (
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
@@ -208,14 +294,16 @@ function PhotoWall({ photos, preview }: { photos: Photo[]; preview: boolean }) {
           e.target.value = "";
         }}
       />
+      {preview && <p className="text-xs mt-2" style={{ color: "#a3988a" }}>预览模式，照片不会保存</p>}
       {err && <p className="text-sm mt-2" style={{ color: "#9a3412" }}>{err}</p>}
     </div>
   );
 }
 
-/* ---------- 个人信息（可编辑） ---------- */
+/* ---------- 个人信息（表单常驻，直接编辑） ---------- */
 type EditForm = {
-  wechat: string; city: string; gradClass: string; mbti: string; height: string; job: string;
+  name: string; gender: string; birthYear: string; wechat: string; phone: string;
+  city: string; gradClass: string; mbti: string; height: string; job: string;
   prefMinHeight: string; prefBirthFrom: string; prefBirthTo: string; acceptDistance: string;
   intro: string; expectation: string; value: string;
 };
@@ -223,10 +311,13 @@ type EditForm = {
 function ProfileCard({ p, preview }: { p: MeData["profile"]; preview: boolean }) {
   const utils = trpc.useUtils();
   const update = trpc.responses.memberUpdate.useMutation();
-  const [editing, setEditing] = useState(false);
   const [err, setErr] = useState("");
+  const [notice, setNotice] = useState("");
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [form, setForm] = useState<EditForm>({
-    wechat: p.wechat, city: p.city, gradClass: p.gradClass, mbti: p.mbti ?? "",
+    name: p.name, gender: p.gender, birthYear: p.birthYear ? String(p.birthYear) : "",
+    wechat: p.wechat, phone: p.phone,
+    city: p.city, gradClass: p.gradClass, mbti: p.mbti ?? "",
     height: p.height ? String(p.height) : "", job: p.job ?? "",
     prefMinHeight: p.prefMinHeight ? String(p.prefMinHeight) : "",
     prefBirthFrom: p.prefBirthFrom ? String(p.prefBirthFrom) : "",
@@ -241,18 +332,30 @@ function ProfileCard({ p, preview }: { p: MeData["profile"]; preview: boolean })
     const n = parseInt(s, 10);
     return Number.isFinite(n) ? n : null;
   };
+  const flash = (msg: string) => {
+    setNotice(msg);
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => setNotice(""), 2500);
+  };
 
   const save = () => {
     setErr("");
+    if (preview) return flash("预览模式，不会保存");
     // 自我介绍：留空或未改动就不传（保留原文），传了新内容才校验 30 字
     const introTrimmed = form.intro.trim();
     const introChanged = introTrimmed !== (p.intro ?? "").trim();
     if (introChanged && introTrimmed && introTrimmed.length < 30) {
       return setErr(`自我介绍至少写 30 字（当前 ${introTrimmed.length} 字）`);
     }
-    if (preview) return setEditing(false);
+    const phone = form.phone.trim();
+    if (phone && !/^\d{11}$/.test(phone)) return setErr("手机号是 11 位数字");
     update.mutate(
+      // name/gender/birthYear/phone 由后端并行扩展进 memberUpdate；断言保证两边类型都能编译
       {
+        name: form.name.trim() || undefined,
+        gender: (form.gender || undefined) as "男" | "女" | undefined,
+        birthYear: num(form.birthYear) ?? undefined,
+        phone: phone || undefined,
         wechat: form.wechat.trim() || undefined,
         city: form.city.trim() || undefined,
         gradClass: form.gradClass.trim() || undefined,
@@ -266,9 +369,9 @@ function ProfileCard({ p, preview }: { p: MeData["profile"]; preview: boolean })
         intro: introChanged && introTrimmed ? introTrimmed : undefined,
         expectation: form.expectation.trim() || undefined,
         value: form.value.trim() || undefined,
-      },
+      } as Parameters<typeof update.mutate>[0],
       {
-        onSuccess: () => { setEditing(false); void utils.responses.memberMe.invalidate(); },
+        onSuccess: () => { void utils.responses.memberMe.invalidate(); flash("已保存"); },
         onError: (e) => setErr(trpcErrorMessage(e, "保存失败")),
       },
     );
@@ -280,102 +383,95 @@ function ProfileCard({ p, preview }: { p: MeData["profile"]; preview: boolean })
 
   return (
     <div className="rounded-3xl p-6 mb-4" style={{ background: "#FFFDF6" }}>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="font-display text-lg" style={{ color: "#121212" }}>个人信息</h2>
-        {!editing && (
-          <button type="button" onClick={() => setEditing(true)} className="text-sm font-semibold" style={{ color: "#F97028" }}>
-            修改
-          </button>
-        )}
-      </div>
-
-      {!editing ? (
-        <>
-          <Info label="微信" value={p.wechat} />
-          <Info label="手机" value={p.phone} />
-          <Info label="性别" value={p.gender} />
-          <Info label="出生年" value={p.birthYear} />
-          <Info label="城市" value={p.city} />
-          <Info label="届班" value={p.gradClass} />
-          {p.mbti && <p className="text-sm leading-relaxed mb-1.5" style={{ color: "#5a5347" }}><span style={{ color: "#a3988a" }}>MBTI：</span><ArtText size="1.1rem">{p.mbti}</ArtText></p>}
-          <Info label="身高" value={p.height ? `${p.height} cm` : ""} />
-          <Info label="职业" value={p.job} />
-          <Info label="介绍" value={p.intro} />
-          <Info label="理想型" value={p.expectation} />
-          <Info label="最看重" value={p.value} />
-          <Info
-            label="对对方的硬要求"
-            value={[
-              p.prefMinHeight ? `身高≥${p.prefMinHeight}` : "",
-              p.prefBirthFrom || p.prefBirthTo ? `出生年 ${p.prefBirthFrom ?? "不限"}–${p.prefBirthTo ?? "不限"}` : "",
-              p.acceptDistance ? `异地：${p.acceptDistance}` : "",
-            ].filter(Boolean).join(" · ")}
-          />
-        </>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>{lbl("微信号")}<input className={inputCls} style={inputStyle} value={form.wechat} onChange={set("wechat")} /></div>
-            <div>{lbl("城市")}<input className={inputCls} style={inputStyle} value={form.city} onChange={set("city")} /></div>
-            <div>{lbl("届班")}<input className={inputCls} style={inputStyle} value={form.gradClass} onChange={set("gradClass")} /></div>
-            <div>{lbl("MBTI")}<input className={inputCls} style={inputStyle} value={form.mbti} onChange={set("mbti")} maxLength={4} /></div>
-            <div>{lbl("身高（cm）")}<input className={inputCls} style={inputStyle} type="number" value={form.height} onChange={set("height")} /></div>
-            <div>{lbl("职业 / 行业")}<input className={inputCls} style={inputStyle} value={form.job} onChange={set("job")} /></div>
-          </div>
-          <div className="rounded-2xl p-3" style={{ background: "#FBF3E3" }}>
-            <p className="text-xs font-semibold mb-2" style={{ color: "#7a7060" }}>对对方的硬要求（可留空）</p>
-            <div className="grid grid-cols-3 gap-2">
-              <div>{lbl("最低身高")}<input className={inputCls} style={inputStyle} type="number" value={form.prefMinHeight} onChange={set("prefMinHeight")} /></div>
-              <div>{lbl("出生年从")}<input className={inputCls} style={inputStyle} type="number" value={form.prefBirthFrom} onChange={set("prefBirthFrom")} /></div>
-              <div>{lbl("出生年到")}<input className={inputCls} style={inputStyle} type="number" value={form.prefBirthTo} onChange={set("prefBirthTo")} /></div>
-            </div>
-            <div className="mt-2">
-              {lbl("是否接受异地")}
-              <div className="flex gap-2">
-                {["不接受", "看情况", "接受"].map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, acceptDistance: f.acceptDistance === opt ? "" : opt }))}
-                    className="flex-1 py-2 rounded-xl text-xs font-semibold"
-                    style={{
-                      background: form.acceptDistance === opt ? "#F97028" : "#FFFDF6",
-                      color: form.acceptDistance === opt ? "#FFFDF6" : "#5a5347",
-                      border: "2px solid",
-                      borderColor: form.acceptDistance === opt ? "#F97028" : "#E8DCC0",
-                    }}
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
+      <h2 className="font-display text-lg mb-3" style={{ color: "#121212" }}>个人信息</h2>
+      <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>{lbl("姓名")}<input className={inputCls} style={inputStyle} value={form.name} onChange={set("name")} maxLength={64} /></div>
+          <div>
+            {lbl("性别")}
+            <div className="flex gap-2">
+              {["男", "女"].map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, gender: g }))}
+                  className="flex-1 py-2 rounded-xl text-sm font-semibold"
+                  style={{
+                    background: form.gender === g ? "#F97028" : "#FFFDF6",
+                    color: form.gender === g ? "#FFFDF6" : "#5a5347",
+                    border: "2px solid",
+                    borderColor: form.gender === g ? "#F97028" : "#E8DCC0",
+                  }}
+                >
+                  {g}
+                </button>
+              ))}
             </div>
           </div>
-          <div>{lbl(`自我介绍（不改或留空则保留原文；重写至少 30 字，已写 ${form.intro.trim().length} 字）`)}<textarea rows={3} className={inputCls} style={{ ...inputStyle, resize: "none" }} value={form.intro} onChange={set("intro")} maxLength={300} /></div>
-          <div>{lbl("理想型")}<textarea rows={2} className={inputCls} style={{ ...inputStyle, resize: "none" }} value={form.expectation} onChange={set("expectation")} maxLength={300} /></div>
-          <div>{lbl("最看重")}<textarea rows={2} className={inputCls} style={{ ...inputStyle, resize: "none" }} value={form.value} onChange={set("value")} maxLength={300} /></div>
-          {err && <p className="text-sm" style={{ color: "#9a3412" }}>{err}</p>}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={save}
-              disabled={update.isPending}
-              className="flex-1 font-display text-base py-3 rounded-full disabled:opacity-50"
-              style={{ background: "#F97028", color: "#FFFDF6" }}
-            >
-              {update.isPending ? "保存中…" : "保存"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditing(false)}
-              className="px-6 py-3 rounded-full text-sm font-semibold"
-              style={{ background: "#F3ECD2", color: "#7a7060" }}
-            >
-              取消
-            </button>
+          <div>{lbl("出生年")}<input className={inputCls} style={inputStyle} type="number" value={form.birthYear} onChange={set("birthYear")} /></div>
+          <div>
+            {lbl("手机号")}
+            <input
+              className={inputCls}
+              style={inputStyle}
+              inputMode="numeric"
+              maxLength={11}
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value.replace(/\D/g, "").slice(0, 11) }))}
+            />
+            <p className="text-xs mt-1" style={{ color: "#a3988a" }}>改手机号会影响下次登录用的号码</p>
+          </div>
+          <div>{lbl("微信号")}<input className={inputCls} style={inputStyle} value={form.wechat} onChange={set("wechat")} /></div>
+          <div>{lbl("城市")}<input className={inputCls} style={inputStyle} value={form.city} onChange={set("city")} /></div>
+          <div>{lbl("届班")}<input className={inputCls} style={inputStyle} value={form.gradClass} onChange={set("gradClass")} /></div>
+          <div>{lbl("MBTI")}<input className={inputCls} style={inputStyle} value={form.mbti} onChange={set("mbti")} maxLength={4} /></div>
+          <div>{lbl("身高（cm）")}<input className={inputCls} style={inputStyle} type="number" value={form.height} onChange={set("height")} /></div>
+          <div>{lbl("职业 / 行业")}<input className={inputCls} style={inputStyle} value={form.job} onChange={set("job")} /></div>
+        </div>
+        <div className="rounded-2xl p-3" style={{ background: "#FBF3E3" }}>
+          <p className="text-xs font-semibold mb-2" style={{ color: "#7a7060" }}>对对方的硬要求（可留空）</p>
+          <div className="grid grid-cols-3 gap-2">
+            <div>{lbl("最低身高")}<input className={inputCls} style={inputStyle} type="number" value={form.prefMinHeight} onChange={set("prefMinHeight")} /></div>
+            <div>{lbl("出生年从")}<input className={inputCls} style={inputStyle} type="number" value={form.prefBirthFrom} onChange={set("prefBirthFrom")} /></div>
+            <div>{lbl("出生年到")}<input className={inputCls} style={inputStyle} type="number" value={form.prefBirthTo} onChange={set("prefBirthTo")} /></div>
+          </div>
+          <div className="mt-2">
+            {lbl("是否接受异地")}
+            <div className="flex gap-2">
+              {["不接受", "看情况", "接受"].map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, acceptDistance: f.acceptDistance === opt ? "" : opt }))}
+                  className="flex-1 py-2 rounded-xl text-xs font-semibold"
+                  style={{
+                    background: form.acceptDistance === opt ? "#F97028" : "#FFFDF6",
+                    color: form.acceptDistance === opt ? "#FFFDF6" : "#5a5347",
+                    border: "2px solid",
+                    borderColor: form.acceptDistance === opt ? "#F97028" : "#E8DCC0",
+                  }}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-      )}
+        <div>{lbl(`自我介绍（不改或留空则保留原文；重写至少 30 字，已写 ${form.intro.trim().length} 字）`)}<textarea rows={3} className={inputCls} style={{ ...inputStyle, resize: "none" }} value={form.intro} onChange={set("intro")} maxLength={300} /></div>
+        <div>{lbl("理想型")}<textarea rows={2} className={inputCls} style={{ ...inputStyle, resize: "none" }} value={form.expectation} onChange={set("expectation")} maxLength={300} /></div>
+        <div>{lbl("最看重")}<textarea rows={2} className={inputCls} style={{ ...inputStyle, resize: "none" }} value={form.value} onChange={set("value")} maxLength={300} /></div>
+        {err && <p className="text-sm" style={{ color: "#9a3412" }}>{err}</p>}
+        {notice && <p className="text-sm" style={{ color: preview ? "#F97028" : "#7a7060" }}>{notice}</p>}
+        <button
+          type="button"
+          onClick={save}
+          disabled={update.isPending}
+          className="w-full font-display text-base py-3 rounded-full disabled:opacity-50"
+          style={{ background: "#F97028", color: "#FFFDF6" }}
+        >
+          {update.isPending ? "保存中…" : "保存"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -398,6 +494,7 @@ function Desk({ data, onLogout, preview = false }: { data: MeData; onLogout: () 
   const topLang = scores
     ? (Object.entries(scores.LL) as [LangKey, number][]).sort((a, b) => b[1] - a[1])[0]?.[0]
     : undefined;
+  const mbtiInfo = p.mbti ? MBTI_TYPES[p.mbti.toUpperCase()] : undefined;
 
   return (
     <Shell>
@@ -445,11 +542,17 @@ function Desk({ data, onLogout, preview = false }: { data: MeData; onLogout: () 
         </div>
       </div>
 
-      {/* MBTI 卡（独立展示，不混在人格卡里） */}
-      {p.mbti && (
+      {/* MBTI 卡（独立展示，不混在人格卡里；库里查不到就不渲染） */}
+      {mbtiInfo && (
         <div className="rounded-3xl p-6 mb-4" style={{ background: "#FFFDF6" }}>
-          <h2 className="font-display text-lg mb-2" style={{ color: "#121212" }}>MBTI</h2>
-          <ArtText size="2rem">{p.mbti}</ArtText>
+          <div className="flex items-center gap-4">
+            <img src={mbtiInfo.avatar} alt={mbtiInfo.code} className="w-20 h-20 rounded-2xl object-cover" style={{ background: "#F3ECD2" }} />
+            <div>
+              <ArtText size="2rem">{mbtiInfo.code}</ArtText>
+              <p className="font-display text-lg" style={{ color: "#121212" }}>{mbtiInfo.name}</p>
+              <p className="text-sm" style={{ color: "#5a5347" }}>{mbtiInfo.love}</p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -457,11 +560,6 @@ function Desk({ data, onLogout, preview = false }: { data: MeData; onLogout: () 
       <ProfileCard p={p} preview={preview} />
     </Shell>
   );
-}
-
-function Info({ label, value }: { label: string; value: unknown }) {
-  if (value === undefined || value === null || value === "") return null;
-  return <p className="text-sm leading-relaxed mb-1.5" style={{ color: "#5a5347" }}><span style={{ color: "#a3988a" }}>{label}：</span>{String(value)}</p>;
 }
 
 function Shell({ children }: { children: React.ReactNode }) {

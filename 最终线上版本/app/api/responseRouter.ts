@@ -132,6 +132,19 @@ async function requireAdmin(req: Request) {
   }
 }
 
+/** 校验短信验证码：过期/错码 fail，成功则作废 */
+async function verifyOtpCode(phone: string, code: string) {
+  const row = await getOtp(phone);
+  const now = Date.now();
+  if (!row || row.expiresAt < now) fail("BAD_REQUEST", "验证码已过期，请重新获取");
+  const actual = Buffer.from(hashOtp(phone, code));
+  const expected = Buffer.from(row.codeHash);
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+    fail("UNAUTHORIZED", "验证码不对");
+  }
+  await clearOtp(phone);
+}
+
 const likertAnswers = z.record(z.string(), z.number().int().min(1).max(7));
 const rankingAnswers = z.record(z.string(), z.array(z.string()).length(5));
 
@@ -326,15 +339,26 @@ export const responseRouter = createRouter({
   }),
 
   sendLoginCode: publicQuery
-    .input(z.object({ phone: z.string().min(11).max(20) }))
+    .input(z.object({ name: z.string().trim().min(1).max(64), phone: z.string().min(11).max(20) }))
     .mutation(async ({ input }) => {
       const phone = normalizePhone(input.phone);
       if (!PHONE_RE.test(phone)) fail("BAD_REQUEST", "请填写有效的大陆手机号");
-      if (!smsConfigured()) fail("PRECONDITION_FAILED", "短信服务还没配好，暂时不能发验证码");
+      if (!smsConfigured() && env.isProduction) fail("PRECONDITION_FAILED", "短信服务还没配好，暂时不能发验证码");
       await ensureTable();
       const db = getDb();
       const people = await db.select().from(profiles).where(eq(profiles.phone, phone));
-      if (people.length === 0) fail("NOT_FOUND", "这个手机号还没有报名记录");
+      if (people.length > 0) {
+        // 手机号有档案：姓名必须对得上其中一条
+        if (!people.some((p) => p.name.trim() === input.name)) {
+          fail("NOT_FOUND", "这个手机号和姓名对不上。请使用校友活动登记的手机号");
+        }
+      } else {
+        // 手机号没档案：只放行"姓名有报名记录、且还没绑定手机号"的情况
+        const sameName = await db.select().from(profiles).where(eq(profiles.name, input.name));
+        if (!sameName.some((p) => !p.phone)) {
+          fail("NOT_FOUND", "没有找到这个名字的报名记录，请确认和测试时填的一致");
+        }
+      }
       const now = Date.now();
       const existing = await getOtp(phone);
       if (existing && now - existing.sentAt < 60_000) fail("TOO_MANY_REQUESTS", "验证码刚发过，请 60 秒后再试");
@@ -346,7 +370,9 @@ export const responseRouter = createRouter({
       }
       if (hourCount >= 5) fail("TOO_MANY_REQUESTS", "这个小时的验证码次数用完了");
       const code = randomOtp();
-      await sendOtpSms(phone, code);
+      // 本地开发没配短信时不发信，直接把验证码带回给前端（仅开发用）
+      const devOnly = !smsConfigured();
+      if (!devOnly) await sendOtpSms(phone, code);
       await putOtp({
         phone,
         codeHash: hashOtp(phone, code),
@@ -355,23 +381,29 @@ export const responseRouter = createRouter({
         hourStarted,
         hourCount: hourCount + 1,
       });
-      return { ok: true };
+      return devOnly ? { ok: true, devCode: code } : { ok: true };
     }),
 
   verifyLoginCode: publicQuery
-    .input(z.object({ phone: z.string().min(11).max(20), code: z.string().regex(/^\d{6}$/) }))
+    .input(
+      z.object({
+        phone: z.string().min(11).max(20),
+        code: z.string().regex(/^\d{6}$/),
+        name: z.string().trim().min(1).max(64).optional(),
+      })
+    )
     .mutation(async ({ input, ctx }) => {
       const phone = normalizePhone(input.phone);
       if (!PHONE_RE.test(phone)) fail("BAD_REQUEST", "请填写有效的大陆手机号");
-      const row = await getOtp(phone);
-      const now = Date.now();
-      if (!row || row.expiresAt < now) fail("BAD_REQUEST", "验证码已过期，请重新获取");
-      const actual = Buffer.from(hashOtp(phone, input.code));
-      const expected = Buffer.from(row.codeHash);
-      if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
-        fail("UNAUTHORIZED", "验证码不对");
+      await verifyOtpCode(phone, input.code);
+      // 报名留了姓名但还没绑定手机号的档案，这次登录顺手补上手机号
+      if (input.name) {
+        await ensureTable();
+        await getDb()
+          .update(profiles)
+          .set({ phone })
+          .where(and(eq(profiles.name, input.name), eq(profiles.phone, "")));
       }
-      await clearOtp(phone);
       ctx.resHeaders.append("Set-Cookie", memberCookieHeader(await signMember(phone)));
       return { ok: true };
     }),
@@ -390,6 +422,48 @@ export const responseRouter = createRouter({
       if (!profile) fail("NOT_FOUND", "姓名和手机号对不上报名记录");
       ctx.resHeaders.append("Set-Cookie", memberCookieHeader(await signMember(phone)));
       return { ok: true, name: profile.name };
+    }),
+
+  // 测试完成后的快速注册：验证码 + 姓名 + 手机号 + 同意隐私政策
+  memberRegister: publicQuery
+    .input(
+      z.object({
+        sessionId: z.string().min(8).max(64),
+        name: z.string().trim().min(1).max(64),
+        phone: z.string().min(11).max(20),
+        code: z.string().regex(/^\d{6}$/),
+        consent: z.literal(true, { error: "请先阅读并勾选《隐私政策》" }),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const phone = normalizePhone(input.phone);
+      if (!PHONE_RE.test(phone)) fail("BAD_REQUEST", "请填写有效的大陆手机号");
+      await verifyOtpCode(phone, input.code);
+      await ensureTable();
+      const db = getDb();
+      // 手机号已有档案：视为老会员登录，直接签 cookie
+      const people = await db.select().from(profiles).where(eq(profiles.phone, phone));
+      if (people.length > 0) {
+        ctx.resHeaders.append("Set-Cookie", memberCookieHeader(await signMember(phone)));
+        return { ok: true, created: false };
+      }
+      // 性别取该 sessionId 最新一次测试作答；没做过测试不让注册
+      const quizzes = await db.select().from(responsesV3).where(eq(responsesV3.sessionId, input.sessionId));
+      const quiz = quizzes.sort((a, b) => b.id - a.id)[0];
+      if (!quiz) fail("BAD_REQUEST", "请先完成恋爱人格测试");
+      await db.insert(profiles).values({
+        sessionId: input.sessionId,
+        name: input.name,
+        wechat: "",
+        phone,
+        gender: quiz.gender,
+        birthYear: null,
+        city: null,
+        gradClass: null,
+        consentAt: new Date(),
+      });
+      ctx.resHeaders.append("Set-Cookie", memberCookieHeader(await signMember(phone)));
+      return { ok: true, created: true };
     }),
 
   memberLogout: publicQuery.mutation(async ({ ctx }) => {
@@ -480,10 +554,14 @@ export const responseRouter = createRouter({
     };
   }),
 
-  /** 会员修改自己的资料（白名单字段；姓名/性别/出生年/手机不可改） */
+  /** 会员修改自己的资料（白名单字段；改手机号会同时换登录态） */
   memberUpdate: publicQuery
     .input(
       z.object({
+        name: z.string().trim().min(1).max(64).optional(),
+        gender: z.enum(["男", "女"]).optional(),
+        birthYear: z.number().int().min(1946).max(2010).nullable().optional(),
+        phone: z.string().min(11).max(20).nullable().optional(),
         wechat: z.string().trim().min(2).max(64).optional(),
         city: z.string().trim().min(1).max(64).optional(),
         gradClass: z.string().trim().min(1).max(64).optional(),
@@ -502,8 +580,18 @@ export const responseRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const profile = await requireMemberProfile(ctx.req);
       const patch: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(input)) {
+      const { phone: rawPhone, ...rest } = input;
+      for (const [k, v] of Object.entries(rest)) {
         if (v !== undefined) patch[k] = v === "" ? null : v;
+      }
+      if (rawPhone !== undefined) {
+        if (rawPhone === null) {
+          patch.phone = null;
+        } else {
+          const phone = normalizePhone(rawPhone);
+          if (!PHONE_RE.test(phone)) fail("BAD_REQUEST", "请填写有效的大陆手机号");
+          patch.phone = phone;
+        }
       }
       if (Object.keys(patch).length === 0) fail("BAD_REQUEST", "没有要修改的字段");
       if (
@@ -514,6 +602,10 @@ export const responseRouter = createRouter({
         fail("BAD_REQUEST", "期望出生年范围下限不能大于上限");
       }
       await getDb().update(profiles).set(patch).where(eq(profiles.id, profile.id));
+      // 手机号换了：登录态跟着新手机号走
+      if (typeof patch.phone === "string" && patch.phone) {
+        ctx.resHeaders.append("Set-Cookie", memberCookieHeader(await signMember(patch.phone)));
+      }
       return { ok: true };
     }),
 

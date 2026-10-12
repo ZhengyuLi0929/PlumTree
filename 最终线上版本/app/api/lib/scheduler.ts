@@ -39,12 +39,14 @@ export async function runWeeklyMatching(weekKey: string) {
   const bySession = new Map<string, string>();
   for (const r of quizRows) bySession.set(r.sessionId, r.typeCode);
 
-  const users: PoolUser[] = poolWithProfiles.map(({ pool, profile }) => ({
+  // 资料未补全（快速注册先留空 birthYear/city）的用户不参与匹配
+  const complete = poolWithProfiles.filter(({ profile }) => profile.birthYear != null && profile.city);
+  const users: PoolUser[] = complete.map(({ pool, profile }) => ({
     profileId: profile.id,
     name: profile.name,
     gender: profile.gender,
-    birthYear: profile.birthYear,
-    city: profile.city,
+    birthYear: profile.birthYear!,
+    city: profile.city!,
     orgTag: pool.orgTag,
     priority: pool.priority,
     typeCode: bySession.get(profile.sessionId) ?? null,
