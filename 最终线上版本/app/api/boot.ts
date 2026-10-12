@@ -27,12 +27,15 @@ app.get("/api/photos/:file", async (c) => {
   return c.body(new Uint8Array(hit.buf), 200, { "Content-Type": hit.mime, "Cache-Control": "public, max-age=31536000, immutable" });
 });
 app.post("/api/sms/inbound", async (c) => {
-  const body = (await c.req.json().catch(() => ({}))) as { from?: string; text?: string; dayKey?: string };
-  if (!body.from || !body.text) return c.json({ error: "from and text are required" }, 400);
+  // 兼容两种形态：自建联调 {from,text}；腾讯云上行回调 {mobile,text,extend,...}
+  const body = (await c.req.json().catch(() => ({}))) as { from?: string; mobile?: string; text?: string; dayKey?: string };
+  const from = body.from ?? body.mobile;
+  const text = body.text;
+  if (!from || !text) return c.json({ error: "from/mobile and text are required" }, 400);
   const { receiveInboundSms } = await import("./lib/smsMatch");
   const result = await receiveInboundSms({
-    from: body.from,
-    text: body.text,
+    from,
+    text,
     dayKey: env.isProduction ? undefined : body.dayKey,
   });
   return c.json(result, result.ok ? 200 : 404);
