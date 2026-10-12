@@ -577,10 +577,15 @@ function Desk({ data, onLogout, preview = false }: { data: MeData; onLogout: () 
         <div className="flex items-center gap-4">
           {type && <img src={getAvatar(type, p.gender)} alt="" className="w-20 h-20 rounded-2xl object-cover" />}
           <div>
-            <p className="font-display text-xs tracking-widest" style={{ color: "#F97028" }}>{type ? getMeme(type, p.gender) : "还没有测验结果"}</p>
             <h1 className="font-display text-3xl" style={{ color: "#121212" }}>{p.name}</h1>
-            <p className="text-sm" style={{ color: "#7a7060" }}>
-              {type ? <>{type.alias} · <ArtText>{type.code}</ArtText></> : "完成测试并报名后，这里会显示你的恋爱人格"}
+            <p className="text-base mt-1" style={{ color: "#7a7060" }}>
+              {type ? (
+                <>
+                  <span className="font-display text-xl" style={{ color: "#F97028" }}>{getMeme(type, p.gender)}</span>
+                  {"　"}
+                  <ArtText>{type.code}</ArtText>
+                </>
+              ) : "完成测试并报名后，这里会显示你的恋爱人格"}
             </p>
           </div>
         </div>
