@@ -4,7 +4,7 @@ import { trpc } from "@/providers/trpc";
 import { trpcErrorMessage } from "@/lib/errors";
 import { TYPES, getAvatar, getMeme } from "@/data/types";
 import { DIM_META, LOVE_LANGUAGES, type LangKey } from "@/data/questions";
-import { DIM_EXPLAIN } from "@/data/dimExplain";
+import { DIM_LEAN } from "@/data/dimExplain";
 import { computeScoresFinal } from "@/data/questions-final";
 import { MBTI_TYPES } from "@/data/mbti";
 
@@ -542,7 +542,18 @@ function Desk({ data, onLogout, preview = false }: { data: MeData; onLogout: () 
     ? DIM_META.map((dim) => {
         const pair = scores[dim.key] as Record<string, number>;
         const left = Math.round((pair[dim.left] / ((pair[dim.left] + pair[dim.right]) || 1)) * 100);
-        return { title: dim.title, leftName: dim.leftName, rightName: dim.rightName, left, right: 100 - left };
+        return {
+          key: dim.key as string,
+          title: dim.title,
+          leftName: dim.leftName,
+          rightName: dim.rightName,
+          leftEn: dim.leftEn,
+          rightEn: dim.rightEn,
+          leftLetter: dim.left as string,
+          rightLetter: dim.right as string,
+          left,
+          right: 100 - left,
+        };
       })
     : [];
   const topLang = scores
@@ -575,20 +586,25 @@ function Desk({ data, onLogout, preview = false }: { data: MeData; onLogout: () 
         </div>
         {type && <p className="text-sm leading-relaxed mt-4" style={{ color: "#5a5347" }}>{type.persona}</p>}
         {topLang && <p className="text-sm mt-3" style={{ color: "#7a7060" }}>爱的语言：{LOVE_LANGUAGES[topLang].name}</p>}
-        <div className="mt-4 flex flex-col gap-2">
-          {dims.map((dim) => (
-            <div key={dim.title}>
-              <p className="text-xs mb-1" style={{ color: "#a3988a" }}>{dim.title}：{dim.leftName} {dim.left}% · {dim.rightName} {dim.right}%</p>
-              <div className="h-2 rounded-full overflow-hidden" style={{ background: "#F3ECD2" }}>
-                <div className="h-full rounded-full" style={{ width: `${dim.left}%`, background: "#F97028" }} />
+        <div className="mt-4 flex flex-col gap-3">
+          {dims.map((dim) => {
+            const leftWin = dim.left >= dim.right;
+            const lean = DIM_LEAN[dim.key]?.[leftWin ? dim.leftLetter : dim.rightLetter];
+            return (
+              <div key={dim.title}>
+                <p className="text-xs mb-1" style={{ color: "#a3988a" }}>
+                  {dim.title}：
+                  <span style={{ color: leftWin ? "#F97028" : "#a3988a" }}>{dim.leftName}（{dim.leftEn}）{dim.left}%</span>
+                  {" · "}
+                  <span style={{ color: !leftWin ? "#F489A3" : "#a3988a" }}>{dim.rightName}（{dim.rightEn}）{dim.right}%</span>
+                </p>
+                <div className="h-2 rounded-full overflow-hidden" style={{ background: "#F3ECD2" }}>
+                  <div className="h-full rounded-full" style={{ width: `${dim.left}%`, background: "#F97028" }} />
+                </div>
+                {lean && <p className="text-xs leading-relaxed mt-1" style={{ color: "#7a7060" }}>{lean}</p>}
               </div>
-              {(() => {
-                const key = DIM_META.find((m) => m.title === dim.title)?.key;
-                const text = key ? DIM_EXPLAIN[key] : undefined;
-                return text ? <p className="text-xs leading-relaxed mt-1" style={{ color: "#a3988a" }}>{text}</p> : null;
-              })()}
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div className="mt-5 text-center">
           <Link

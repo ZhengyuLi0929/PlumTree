@@ -12,7 +12,7 @@ import { TYPES, getMeme, getAvatar } from '@/data/types'
 import { trpc } from '@/providers/trpc'
 import { trpcErrorMessage } from '@/lib/errors'
 import { MatchIntro, type EnrollPayload } from '@/components/MatchEnroll'
-import { DIM_EXPLAIN } from '@/data/dimExplain'
+import { DIM_LEAN } from '@/data/dimExplain'
 import { SiteFooter } from '@/components/SiteFooter'
 import { ProfileForm } from '@/pages/Profile'
 
@@ -495,24 +495,21 @@ function DimBarList({
         const v = dimValues[key]
         if (!d || !v) return null
         const leftWin = v.left >= v.right
-        const explain = DIM_EXPLAIN[d.key]
+        const lean = DIM_LEAN[d.key]?.[leftWin ? d.left : d.right]
         return (
           <div key={d.key}>
-            <div className="flex justify-between text-sm font-semibold mb-1.5">
-              <span style={{ color: leftWin ? '#F97028' : '#a3988a' }}>
-                {d.leftName}<span className="font-normal text-xs">（{d.leftEn}/{d.left}）</span> {v.left}%
-              </span>
-              <span className="text-xs font-normal" style={{ color: '#a3988a' }}>{d.title}</span>
-              <span style={{ color: !leftWin ? '#F489A3' : '#a3988a' }}>
-                {v.right}% {d.rightName}<span className="font-normal text-xs">（{d.rightEn}/{d.right}）</span>
-              </span>
-            </div>
+            <p className="text-sm font-semibold mb-1.5" style={{ color: '#3d3830' }}>
+              {d.title}：
+              <span style={{ color: leftWin ? '#F97028' : '#a3988a' }}>{d.leftName}（{d.leftEn}）{v.left}%</span>
+              <span style={{ color: '#a3988a' }}> · </span>
+              <span style={{ color: !leftWin ? '#F489A3' : '#a3988a' }}>{d.rightName}（{d.rightEn}）{v.right}%</span>
+            </p>
             <div className="h-3.5 rounded-full overflow-hidden flex" style={{ background: '#E8DCC0' }}>
               <div className="h-full animate-bar" style={{ width: `${v.left}%`, background: leftWin ? '#F97028' : '#E8DCC0' }} />
               <div className="h-full animate-bar flex-1" style={{ background: !leftWin ? '#F489A3' : 'transparent' }} />
             </div>
-            {explain && (
-              <p className="mt-1 text-xs leading-relaxed" style={{ color: '#a3988a' }}>{explain}</p>
+            {lean && (
+              <p className="mt-1.5 text-xs leading-relaxed" style={{ color: '#7a7060' }}>{lean}</p>
             )}
           </div>
         )

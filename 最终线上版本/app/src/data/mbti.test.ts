@@ -25,18 +25,18 @@ describe("MBTI_TYPES", () => {
     }
   });
 
-  it("gives every type a non-empty love description of at most 30 code points", () => {
+  it("gives every type a love description of 30–50 code points", () => {
     for (const type of Object.values(MBTI_TYPES)) {
       const length = [...type.love].length;
-      expect(length).toBeGreaterThan(0);
-      expect(length).toBeLessThanOrEqual(30);
+      expect(length).toBeGreaterThanOrEqual(30);
+      expect(length).toBeLessThanOrEqual(50);
     }
   });
 
-  it("gives every type an avatar at /mbti/<CODE>.svg matching its code", () => {
+  it("gives every type an avatar at /mbti/<CODE>.png matching its code", () => {
     for (const type of Object.values(MBTI_TYPES)) {
-      expect(type.avatar).toMatch(/^\/mbti\/[A-Z]{4}\.svg$/);
-      expect(type.avatar).toBe(`/mbti/${type.code}.svg`);
+      expect(type.avatar).toMatch(/^\/mbti\/[A-Z]{4}\.png$/);
+      expect(type.avatar).toBe(`/mbti/${type.code}.png`);
     }
   });
 
