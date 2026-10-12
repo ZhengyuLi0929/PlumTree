@@ -79,6 +79,8 @@ export const profiles = mysqlTable("profiles", {
   consentAt: timestamp("consent_at"),
   /** 月老对话合并进来的择偶需求与关键反馈，不覆盖报名表原字段 */
   chatFacts: text("chat_facts"),
+  /** 本周约会倾向 JSON：{ locations, activities, times, customLocation, customActivity } */
+  datePrefs: text("date_prefs"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

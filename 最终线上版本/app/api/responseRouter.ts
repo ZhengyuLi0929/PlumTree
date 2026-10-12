@@ -46,7 +46,10 @@ function fail(code: TRPCError["code"], message: string): never {
   throw new TRPCError({ code, message });
 }
 
-function previewMember() {
+const PREVIEW_SESSION = "preview-session";
+
+/** 预览用户：假资料打底；本地库里 preview-session 行的修改会覆盖进来（预览也能真保存） */
+async function previewMember() {
   const answers: Record<string, number> = {};
   const timings: Record<string, number> = {};
   for (const question of FINAL_QUESTIONS) {
@@ -54,7 +57,7 @@ function previewMember() {
     timings[String(question.id)] = 1200;
   }
   const order = ["words", "time", "gifts", "acts", "touch"];
-  return {
+  const base = {
     profile: {
       name: "预览用户",
       wechat: "preview_wx",
@@ -73,6 +76,7 @@ function previewMember() {
       intro: "这是本地预览用的假资料，用来看登录后的页面，不会写入数据库。",
       expectation: "温和、有自己的事做、愿意沟通。",
       value: "互相尊重，不冷暴力。",
+      datePrefs: null as string | null,
     },
     quiz: {
       typeCode: "ISRH",
@@ -97,6 +101,38 @@ function previewMember() {
       { weekKey: "2026-W40", state: "done", mine: "见面", theirs: "见面", met: 1, score: 4, willing: "想" },
     ],
   };
+  // 本地预览档案（preview-session）里改过的字段覆盖假数据
+  try {
+    if (hasDatabase()) {
+      await ensureTable();
+      const [saved] = await getDb().select().from(profiles).where(eq(profiles.sessionId, PREVIEW_SESSION));
+      if (saved) {
+        base.profile = {
+          ...base.profile,
+          name: saved.name,
+          wechat: saved.wechat,
+          gender: saved.gender,
+          birthYear: saved.birthYear,
+          city: saved.city,
+          gradClass: saved.gradClass,
+          mbti: saved.mbti,
+          height: saved.height,
+          job: saved.job,
+          prefMinHeight: saved.prefMinHeight,
+          prefBirthFrom: saved.prefBirthFrom,
+          prefBirthTo: saved.prefBirthTo,
+          acceptDistance: saved.acceptDistance,
+          intro: saved.intro,
+          expectation: saved.expectation,
+          value: saved.value,
+          datePrefs: saved.datePrefs,
+        } as typeof base.profile; // 可空列落到预览档案，前端已判空
+      }
+    }
+  } catch {
+    /* 预览覆盖失败就用假数据 */
+  }
+  return base;
 }
 
 function dbUnavailable(err: unknown): never {
@@ -476,7 +512,7 @@ export const responseRouter = createRouter({
     .query(async ({ input, ctx }) => {
     if (input?.preview) {
       if (env.isProduction) fail("FORBIDDEN", "预览只在本地开发打开");
-      return previewMember();
+      return await previewMember();
     }
     const token = memberTokenFromRequest(ctx.req);
     if (!token) fail("UNAUTHORIZED", "请先用手机号登录");
@@ -526,6 +562,7 @@ export const responseRouter = createRouter({
         intro: profile.intro,
         expectation: profile.expectation,
         value: profile.value,
+        datePrefs: profile.datePrefs,
       },
       photos: await listPhotos(profile.id),
       quiz: quiz
@@ -605,6 +642,83 @@ export const responseRouter = createRouter({
       // 手机号换了：登录态跟着新手机号走
       if (typeof patch.phone === "string" && patch.phone) {
         ctx.resHeaders.append("Set-Cookie", memberCookieHeader(await signMember(patch.phone)));
+      }
+      return { ok: true };
+    }),
+
+  /** 保存本周约会倾向（地点/活动/时间多选 + 自定义文本） */
+  memberSaveDatePrefs: publicQuery
+    .input(
+      z.object({
+        locations: z.array(z.string().max(32)).max(17),
+        activities: z.array(z.string().max(32)).max(5),
+        times: z.array(z.string().max(16)).max(4),
+        customLocation: z.string().trim().max(100).optional(),
+        customActivity: z.string().trim().max(100).optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const profile = await requireMemberProfile(ctx.req);
+      await getDb().update(profiles).set({ datePrefs: JSON.stringify(input) }).where(eq(profiles.id, profile.id));
+      return { ok: true };
+    }),
+
+  /** 预览模式专用：把修改写进 preview-session 档案（仅本地开发可用） */
+  previewUpdate: publicQuery
+    .input(
+      z.object({
+        profile: z
+          .object({
+            name: z.string().trim().min(1).max(64).optional(),
+            gender: z.enum(["男", "女"]).optional(),
+            birthYear: z.number().int().min(1946).max(2010).nullable().optional(),
+            wechat: z.string().trim().max(64).optional(),
+            city: z.string().trim().max(64).nullable().optional(),
+            gradClass: z.string().trim().max(64).nullable().optional(),
+            mbti: z.string().trim().max(8).nullable().optional(),
+            height: z.number().int().min(130).max(230).nullable().optional(),
+            job: z.string().trim().max(64).nullable().optional(),
+            prefMinHeight: z.number().int().min(140).max(210).nullable().optional(),
+            prefBirthFrom: z.number().int().nullable().optional(),
+            prefBirthTo: z.number().int().nullable().optional(),
+            acceptDistance: z.enum(["接受", "不接受", "看情况"]).nullable().optional(),
+            intro: z.string().trim().max(300).optional(),
+            expectation: z.string().trim().max(300).optional(),
+            value: z.string().trim().max(300).optional(),
+          })
+          .optional(),
+        datePrefs: z
+          .object({
+            locations: z.array(z.string().max(32)).max(17),
+            activities: z.array(z.string().max(32)).max(5),
+            times: z.array(z.string().max(16)).max(4),
+            customLocation: z.string().trim().max(100).optional(),
+            customActivity: z.string().trim().max(100).optional(),
+          })
+          .optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      if (env.isProduction) fail("FORBIDDEN", "预览只在本地开发打开");
+      await ensureTable();
+      const db = getDb();
+      const [existing] = await db.select().from(profiles).where(eq(profiles.sessionId, PREVIEW_SESSION));
+      const patch: Record<string, unknown> = { ...(input.profile ?? {}) };
+      if (input.datePrefs) patch.datePrefs = JSON.stringify(input.datePrefs);
+      if (existing) {
+        if (Object.keys(patch).length) await db.update(profiles).set(patch).where(eq(profiles.id, existing.id));
+      } else {
+        await db.insert(profiles).values({
+          sessionId: PREVIEW_SESSION,
+          name: "预览用户",
+          wechat: "preview_wx",
+          phone: "13800000000",
+          gender: "女",
+          birthYear: 1998,
+          city: "北京",
+          gradClass: "2016届7班",
+          ...patch,
+        });
       }
       return { ok: true };
     }),

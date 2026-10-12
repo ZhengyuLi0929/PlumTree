@@ -12,6 +12,7 @@ import { TYPES, getMeme, getAvatar } from '@/data/types'
 import { trpc } from '@/providers/trpc'
 import { trpcErrorMessage } from '@/lib/errors'
 import { MatchIntro, type EnrollPayload } from '@/components/MatchEnroll'
+import { DIM_EXPLAIN } from '@/data/dimExplain'
 import { SiteFooter } from '@/components/SiteFooter'
 import { ProfileForm } from '@/pages/Profile'
 
@@ -478,13 +479,6 @@ function RankScreen({ q, step, total, onDone }: {
       </div>
     </div>
   )
-}
-
-const DIM_EXPLAIN: Record<string, string> = {
-  FI: '亲密距离（F=融合 / I=独立）：你更看重亲密无间还是自我空间。融合=恋爱里黏人、想时刻在一起；独立=需要自己的空间。',
-  SG: '真爱来源（S=火花 / G=养成）：你更信一见钟情还是日久生情。火花=看感觉，第一眼定生死；养成=感情是处出来的。',
-  RP: '价值取向（R=浪漫 / P=务实）：你更看重仪式感还是过日子。浪漫=惊喜和心意不能少；务实=柴米油盐才靠谱。',
-  HC: '冲突风格（H=热处理 / C=冷处理）：闹矛盾时，你倾向当场说清还是先冷静。热处理=今晚必须聊明白；冷处理=先暂停再谈。',
 }
 
 function DimBarList({

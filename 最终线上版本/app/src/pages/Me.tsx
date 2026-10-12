@@ -4,6 +4,7 @@ import { trpc } from "@/providers/trpc";
 import { trpcErrorMessage } from "@/lib/errors";
 import { TYPES, getAvatar, getMeme } from "@/data/types";
 import { DIM_META, LOVE_LANGUAGES, type LangKey } from "@/data/questions";
+import { DIM_EXPLAIN } from "@/data/dimExplain";
 import { computeScoresFinal } from "@/data/questions-final";
 import { MBTI_TYPES } from "@/data/mbti";
 
@@ -14,6 +15,14 @@ function asNumberRecord(raw: Record<string, number> | undefined) {
 }
 
 type Photo = { id: number; url: string };
+
+type DatePrefs = {
+  locations: string[];
+  activities: string[];
+  times: string[];
+  customLocation?: string;
+  customActivity?: string;
+};
 
 type MeData = {
   profile: {
@@ -34,6 +43,7 @@ type MeData = {
     intro: string | null;
     expectation: string | null;
     value: string | null;
+    datePrefs: string | null;
   };
   quiz: { typeCode: string; gender: string; answers: Record<string, number>; rankings: Record<string, string[]>; timings: Record<string, number> } | null;
   photos: Photo[];
@@ -199,6 +209,19 @@ function ArtText({ children, size = "1.4rem" }: { children: React.ReactNode; siz
   );
 }
 
+/* ---------- 浮动提示（保存成功/失败 toast） ---------- */
+function Toast({ msg }: { msg: string }) {
+  if (!msg) return null;
+  return (
+    <div
+      className="fixed top-6 left-1/2 -translate-x-1/2 z-50 animate-pop rounded-full px-5 py-2.5 text-sm font-semibold"
+      style={{ background: "#121212", color: "#F3ECD2", boxShadow: "0 8px 24px rgba(18,18,18,0.25)" }}
+    >
+      {msg}
+    </div>
+  );
+}
+
 /* ---------- 照片墙（最多 9 张；预览模式只进本地 state，不调接口） ---------- */
 function PhotoWall({ photos, preview }: { photos: Photo[]; preview: boolean }) {
   const utils = trpc.useUtils();
@@ -311,9 +334,10 @@ type EditForm = {
 function ProfileCard({ p, preview }: { p: MeData["profile"]; preview: boolean }) {
   const utils = trpc.useUtils();
   const update = trpc.responses.memberUpdate.useMutation();
+  const previewSave = trpc.responses.previewUpdate.useMutation();
   const [err, setErr] = useState("");
-  const [notice, setNotice] = useState("");
-  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [toast, setToast] = useState("");
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [form, setForm] = useState<EditForm>({
     name: p.name, gender: p.gender, birthYear: p.birthYear ? String(p.birthYear) : "",
     wechat: p.wechat, phone: p.phone,
@@ -333,14 +357,13 @@ function ProfileCard({ p, preview }: { p: MeData["profile"]; preview: boolean })
     return Number.isFinite(n) ? n : null;
   };
   const flash = (msg: string) => {
-    setNotice(msg);
-    if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    noticeTimer.current = setTimeout(() => setNotice(""), 2500);
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 2500);
   };
 
   const save = () => {
     setErr("");
-    if (preview) return flash("预览模式，不会保存");
     // 自我介绍：留空或未改动就不传（保留原文），传了新内容才校验 30 字
     const introTrimmed = form.intro.trim();
     const introChanged = introTrimmed !== (p.intro ?? "").trim();
@@ -349,8 +372,39 @@ function ProfileCard({ p, preview }: { p: MeData["profile"]; preview: boolean })
     }
     const phone = form.phone.trim();
     if (phone && !/^\d{11}$/.test(phone)) return setErr("手机号是 11 位数字");
+
+    if (preview) {
+      // 预览模式也真的写库：落到本地 preview-session 档案（仅开发环境可用）
+      previewSave.mutate(
+        {
+          profile: {
+            name: form.name.trim() || undefined,
+            gender: (form.gender || undefined) as "男" | "女" | undefined,
+            birthYear: num(form.birthYear),
+            wechat: form.wechat.trim() || undefined,
+            city: form.city.trim() || null,
+            gradClass: form.gradClass.trim() || null,
+            mbti: form.mbti.trim().toUpperCase() || null,
+            height: num(form.height),
+            job: form.job.trim() || null,
+            prefMinHeight: num(form.prefMinHeight),
+            prefBirthFrom: num(form.prefBirthFrom),
+            prefBirthTo: num(form.prefBirthTo),
+            acceptDistance: (form.acceptDistance || null) as "接受" | "不接受" | "看情况" | null,
+            intro: introChanged && introTrimmed ? introTrimmed : undefined,
+            expectation: form.expectation.trim() || undefined,
+            value: form.value.trim() || undefined,
+          },
+        },
+        {
+          onSuccess: () => { void utils.responses.memberMe.invalidate(); flash("已保存（预览档案）"); },
+          onError: (e) => setErr(trpcErrorMessage(e, "保存失败")),
+        },
+      );
+      return;
+    }
+
     update.mutate(
-      // name/gender/birthYear/phone 由后端并行扩展进 memberUpdate；断言保证两边类型都能编译
       {
         name: form.name.trim() || undefined,
         gender: (form.gender || undefined) as "男" | "女" | undefined,
@@ -369,7 +423,7 @@ function ProfileCard({ p, preview }: { p: MeData["profile"]; preview: boolean })
         intro: introChanged && introTrimmed ? introTrimmed : undefined,
         expectation: form.expectation.trim() || undefined,
         value: form.value.trim() || undefined,
-      } as Parameters<typeof update.mutate>[0],
+      },
       {
         onSuccess: () => { void utils.responses.memberMe.invalidate(); flash("已保存"); },
         onError: (e) => setErr(trpcErrorMessage(e, "保存失败")),
@@ -461,17 +515,17 @@ function ProfileCard({ p, preview }: { p: MeData["profile"]; preview: boolean })
         <div>{lbl("理想型")}<textarea rows={2} className={inputCls} style={{ ...inputStyle, resize: "none" }} value={form.expectation} onChange={set("expectation")} maxLength={300} /></div>
         <div>{lbl("最看重")}<textarea rows={2} className={inputCls} style={{ ...inputStyle, resize: "none" }} value={form.value} onChange={set("value")} maxLength={300} /></div>
         {err && <p className="text-sm" style={{ color: "#9a3412" }}>{err}</p>}
-        {notice && <p className="text-sm" style={{ color: preview ? "#F97028" : "#7a7060" }}>{notice}</p>}
         <button
           type="button"
           onClick={save}
-          disabled={update.isPending}
+          disabled={update.isPending || previewSave.isPending}
           className="w-full font-display text-base py-3 rounded-full disabled:opacity-50"
           style={{ background: "#F97028", color: "#FFFDF6" }}
         >
-          {update.isPending ? "保存中…" : "保存"}
+          {update.isPending || previewSave.isPending ? "保存中…" : "保存"}
         </button>
       </div>
+      <Toast msg={toast} />
     </div>
   );
 }
@@ -528,6 +582,11 @@ function Desk({ data, onLogout, preview = false }: { data: MeData; onLogout: () 
               <div className="h-2 rounded-full overflow-hidden" style={{ background: "#F3ECD2" }}>
                 <div className="h-full rounded-full" style={{ width: `${dim.left}%`, background: "#F97028" }} />
               </div>
+              {(() => {
+                const key = DIM_META.find((m) => m.title === dim.title)?.key;
+                const text = key ? DIM_EXPLAIN[key] : undefined;
+                return text ? <p className="text-xs leading-relaxed mt-1" style={{ color: "#a3988a" }}>{text}</p> : null;
+              })()}
             </div>
           ))}
         </div>
@@ -558,7 +617,203 @@ function Desk({ data, onLogout, preview = false }: { data: MeData; onLogout: () 
 
       <PhotoWall photos={data.photos ?? []} preview={preview} />
       <ProfileCard p={p} preview={preview} />
+      <DatePrefsCard raw={p.datePrefs} preview={preview} />
     </Shell>
+  );
+}
+
+/* ---------- 本周约会倾向（三个多选下拉） ---------- */
+const DATE_LOCATIONS = [
+  "三里屯", "国贸/CBD", "王府井", "西单", "中关村", "五道口", "望京", "蓝色港湾",
+  "朝阳大悦城", "合生汇", "大望路/SKP", "金融街", "南锣鼓巷", "后海", "798艺术区",
+];
+const DATE_ACTIVITIES = ["漂亮饭", "奶茶/咖啡", "精心手作"];
+const DATE_TIMES = ["周六上午", "周六下午", "周日上午", "周日下午"];
+const ALL_OPT = "全部选择";
+const MORE_OPT = "更多偏好（请填写）";
+
+function MultiSelect({ label, options, withAll, withMore, values, custom, onChange }: {
+  label: string;
+  options: string[];
+  withAll?: boolean;
+  withMore?: boolean;
+  values: string[];
+  custom: string;
+  onChange: (values: string[], custom: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const allOn = options.length > 0 && options.every((o) => values.includes(o));
+  const moreOn = values.includes(MORE_OPT);
+
+  const toggle = (opt: string) => {
+    if (opt === ALL_OPT) {
+      onChange(allOn ? values.filter((v) => !options.includes(v)) : [...new Set([...values, ...options])], custom);
+      return;
+    }
+    onChange(values.includes(opt) ? values.filter((v) => v !== opt) : [...values, opt], custom);
+  };
+
+  const summary = values.length === 0
+    ? "点击选择…"
+    : values.map((v) => (v === MORE_OPT ? (custom.trim() ? `其他：${custom.trim()}` : "更多偏好") : v)).join("、");
+
+  return (
+    <div className="mb-4">
+      <p className="text-xs font-semibold mb-1.5" style={{ color: "#3d3830" }}>{label}</p>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full text-left px-4 py-3 rounded-xl text-sm flex items-center justify-between gap-2"
+        style={{ background: "#F3ECD2", color: values.length ? "#121212" : "#a3988a" }}
+      >
+        <span className="truncate">{summary}</span>
+        <span style={{ color: "#a3988a" }}>{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="mt-2 rounded-2xl p-2 flex flex-wrap gap-2" style={{ background: "#FBF3E3" }}>
+          {(withAll ? [ALL_OPT, ...options] : [...options]).map((opt) => {
+            const on = opt === ALL_OPT ? allOn : values.includes(opt);
+            return (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => toggle(opt)}
+                className="text-xs px-3 py-2 rounded-full font-semibold transition-all"
+                style={{
+                  background: on ? "#F97028" : "#FFFDF6",
+                  color: on ? "#FFFDF6" : "#5a5347",
+                  border: "2px solid",
+                  borderColor: on ? "#F97028" : "#E8DCC0",
+                }}
+              >
+                {opt}
+              </button>
+            );
+          })}
+          {withMore && (
+            <button
+              type="button"
+              onClick={() => toggle(MORE_OPT)}
+              className="text-xs px-3 py-2 rounded-full font-semibold transition-all"
+              style={{
+                background: moreOn ? "#F489A3" : "#FFFDF6",
+                color: moreOn ? "#FFFDF6" : "#5a5347",
+                border: "2px solid",
+                borderColor: moreOn ? "#F489A3" : "#E8DCC0",
+              }}
+            >
+              {MORE_OPT}
+            </button>
+          )}
+          {withMore && moreOn && (
+            <input
+              className="w-full px-3 py-2 rounded-xl text-sm outline-none mt-1"
+              style={{ background: "#FFFDF6", color: "#121212" }}
+              placeholder="请填写你的偏好"
+              value={custom}
+              maxLength={100}
+              onChange={(e) => onChange(values, e.target.value)}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DatePrefsCard({ raw, preview }: { raw: string | null; preview: boolean }) {
+  const utils = trpc.useUtils();
+  const save = trpc.responses.memberSaveDatePrefs.useMutation();
+  const previewSave = trpc.responses.previewUpdate.useMutation();
+  const parsed = (() => {
+    try {
+      return raw ? (JSON.parse(raw) as Partial<DatePrefs>) : {};
+    } catch {
+      return {};
+    }
+  })();
+  const [locations, setLocations] = useState<string[]>(parsed.locations ?? []);
+  const [activities, setActivities] = useState<string[]>(parsed.activities ?? []);
+  const [times, setTimes] = useState<string[]>(parsed.times ?? []);
+  const [customLocation, setCustomLocation] = useState(parsed.customLocation ?? "");
+  const [customActivity, setCustomActivity] = useState(parsed.customActivity ?? "");
+  const [err, setErr] = useState("");
+  const [toast, setToast] = useState("");
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flash = (msg: string) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 2500);
+  };
+
+  const submit = () => {
+    setErr("");
+    if (locations.includes(MORE_OPT) && !customLocation.trim()) return setErr("选择了「更多偏好」就请填写具体地点");
+    if (activities.includes(MORE_OPT) && !customActivity.trim()) return setErr("选择了「更多偏好」就请填写具体活动");
+    const payload: DatePrefs = {
+      locations,
+      activities,
+      times,
+      customLocation: customLocation.trim() || undefined,
+      customActivity: customActivity.trim() || undefined,
+    };
+    if (preview) {
+      previewSave.mutate(
+        { datePrefs: payload },
+        {
+          onSuccess: () => { void utils.responses.memberMe.invalidate(); flash("已保存（预览档案）"); },
+          onError: (e) => setErr(trpcErrorMessage(e, "保存失败")),
+        },
+      );
+      return;
+    }
+    save.mutate(payload, {
+      onSuccess: () => { void utils.responses.memberMe.invalidate(); flash("已保存"); },
+      onError: (e) => setErr(trpcErrorMessage(e, "保存失败")),
+    });
+  };
+
+  return (
+    <div className="rounded-3xl p-6 mb-4" style={{ background: "#FFFDF6" }}>
+      <h2 className="font-display text-lg mb-1" style={{ color: "#121212" }}>本周约会倾向</h2>
+      <p className="text-xs mb-4" style={{ color: "#a3988a" }}>告诉月老你这周想去哪、想做什么、什么时候有空。</p>
+      <MultiSelect
+        label="倾向的见面地点（可多选）"
+        options={DATE_LOCATIONS}
+        withAll
+        withMore
+        values={locations}
+        custom={customLocation}
+        onChange={(v, c) => { setLocations(v); setCustomLocation(c); }}
+      />
+      <MultiSelect
+        label="倾向的约会活动（可多选）"
+        options={DATE_ACTIVITIES}
+        withAll
+        withMore
+        values={activities}
+        custom={customActivity}
+        onChange={(v, c) => { setActivities(v); setCustomActivity(c); }}
+      />
+      <MultiSelect
+        label="倾向的约会时间（可多选）"
+        options={DATE_TIMES}
+        values={times}
+        custom=""
+        onChange={(v) => setTimes(v)}
+      />
+      {err && <p className="text-sm mb-2" style={{ color: "#9a3412" }}>{err}</p>}
+      <button
+        type="button"
+        onClick={submit}
+        disabled={save.isPending || previewSave.isPending}
+        className="w-full font-display text-base py-3 rounded-full disabled:opacity-50"
+        style={{ background: "#F97028", color: "#FFFDF6" }}
+      >
+        {save.isPending || previewSave.isPending ? "保存中…" : "保存本周倾向"}
+      </button>
+      <Toast msg={toast} />
+    </div>
   );
 }
 

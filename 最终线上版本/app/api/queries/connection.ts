@@ -33,6 +33,8 @@ export function getPool() {
 
 export function getDb() {
   if (!instance) {
+    // drizzle-orm 0.45 的类型声明与 mysql2 3.x 的 Pool 类型不完全兼容（仅类型层，运行时正常）
+    // @ts-expect-error mysql2 Pool 类型差异
     instance = drizzle({
       client: getPool(),
       schema: fullSchema,
@@ -92,6 +94,7 @@ const DDL = [
     \`value\` text,
     consent_at timestamp NULL,
     chat_facts text,
+    date_prefs text,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS otp_codes (
@@ -249,6 +252,7 @@ export async function ensureTable() {
       `ALTER TABLE profiles MODIFY COLUMN birth_year int NULL`,
       `ALTER TABLE profiles MODIFY COLUMN city varchar(64) NULL`,
       `ALTER TABLE profiles MODIFY COLUMN grad_class varchar(64) NULL`,
+      `ALTER TABLE profiles ADD COLUMN date_prefs text`,
       `ALTER TABLE matches ADD COLUMN man_reply varchar(8)`,
       `ALTER TABLE matches ADD COLUMN woman_reply varchar(8)`,
       `ALTER TABLE matches ADD COLUMN man_note_days text`,
