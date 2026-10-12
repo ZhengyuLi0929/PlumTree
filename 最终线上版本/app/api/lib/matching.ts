@@ -21,6 +21,7 @@ export type PoolUser = {
   prefBirthFrom: number | null;
   prefBirthTo: number | null;
   acceptDistance: string | null;
+  chatText: string | null;
 };
 
 export type ScoredPair = {
@@ -36,7 +37,7 @@ const INTEREST_TAGS = [
 ];
 
 function textOf(u: PoolUser) {
-  return [u.intro, u.expectation, u.value, u.job].filter(Boolean).join(" ");
+  return [u.intro, u.expectation, u.value, u.job, u.chatText].filter(Boolean).join(" ");
 }
 
 function birthInRange(who: number, from: number | null, to: number | null) {
@@ -48,8 +49,10 @@ function birthInRange(who: number, from: number | null, to: number | null) {
 /** 返回 null = 硬规则不可配 */
 export function scorePair(man: PoolUser, woman: PoolUser, opts?: { maxAgeGap?: number }): ScoredPair | null {
   // 结构化雷区（双向）
-  if (woman.prefMinHeight != null && (man.height == null || man.height < woman.prefMinHeight)) return null;
-  if (man.prefMinHeight != null && (woman.height == null || woman.height < man.prefMinHeight)) return null;
+  const womanMin = woman.prefMinHeight;
+  const manMin = man.prefMinHeight;
+  if (womanMin != null && (man.height == null || man.height < womanMin)) return null;
+  if (manMin != null && (woman.height == null || woman.height < manMin)) return null;
   if (!birthInRange(man.birthYear, woman.prefBirthFrom, woman.prefBirthTo)) return null;
   if (!birthInRange(woman.birthYear, man.prefBirthFrom, man.prefBirthTo)) return null;
   const sameCity = man.city.trim() === woman.city.trim();

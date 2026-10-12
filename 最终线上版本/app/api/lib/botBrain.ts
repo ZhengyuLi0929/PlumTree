@@ -9,14 +9,17 @@ import {
   logCron,
   logKfMessage,
   matchAwaitingFeedback,
+  nameMasks,
   partnerProfileId,
   recentMessages,
   relayCountToday,
   saveRequirements,
+  setMatchDecision,
   setMatchFeedback,
   setPoolState,
   updateMatchState,
   upsertBotUser,
+  weekMatchForProfile,
 } from "./botStore";
 import { parseFeedback } from "./feedback";
 import { payments } from "../../db/schema";
@@ -27,6 +30,7 @@ import { extractRequirements } from "./requirements";
 import { screenText } from "./safety";
 import { TPL } from "./templates";
 import { confirmOpen, phaseOf, relayOpen } from "./weekly";
+import { redactNames } from "./maskName";
 import { sendWecomText, syncWecomMessages } from "./wecom";
 
 async function reply(externalUserid: string, content: string) {
@@ -41,8 +45,8 @@ async function tryBind(externalUserid: string, content: string): Promise<boolean
     const [name, wechat] = parts;
     const profile = await findProfileByNameWechat(name, wechat);
     if (profile) {
-      await bindBotUser(externalUserid, profile.id, profile.name);
-      await reply(externalUserid, TPL.bindOk(profile.name));
+      await bindBotUser(externalUserid, profile.id, "");
+      await reply(externalUserid, TPL.bindOk());
       return true;
     }
   }
@@ -74,10 +78,11 @@ async function tryRelay(user: { externalUserid: string; profileId: number | null
     await reply(user.externalUserid, TPL.relayPartnerMissing);
     return true;
   }
-  const me = await getProfileById(user.profileId);
+  const masks = await nameMasks();
+  const hidden = redactNames(content, masks, user.profileId);
   // 限额只记发送方；接收方记为 bot 投递，不消耗对方额度
-  await logKfMessage({ externalUserid: user.externalUserid, origin: "relay", content });
-  const delivered = `（月老转达 ${me?.name ?? "对方"}）：${content}`;
+  await logKfMessage({ externalUserid: user.externalUserid, origin: "relay", content: hidden });
+  const delivered = `（同桌的TA发来消息）${hidden}`;
   await logKfMessage({ externalUserid: partnerBot.externalUserid, origin: "bot", content: delivered });
   await sendWecomText(partnerBot.externalUserid, delivered);
   if (match.state === "sent") await updateMatchState(match.id, "chatting");
@@ -93,15 +98,58 @@ async function tryConfirm(user: { externalUserid: string; profileId: number | nu
   const yes = /^(见面|要见|见|见一面|好|好啊|可以)$/i.test(t);
   const no = /^(不了|不见|算了|放弃|不见面)$/i.test(t);
   if (!yes && !no) return false;
-  const match = await activeMatchForProfile(user.profileId);
-  if (!match) return false;
-  if (!confirmOpen()) {
+  const match = await weekMatchForProfile(user.profileId);
+  if (!match || !["sent", "chatting", "confirmed", "declined"].includes(match.state)) return false;
+  const sandboxFriday = process.env.BOT_SANDBOX === "1" && phaseOf() === "dating";
+  if (!confirmOpen() && !sandboxFriday) {
     await reply(user.externalUserid, TPL.relayClosed);
     return true;
   }
-  await updateMatchState(match.id, yes ? "confirmed" : "declined");
-  await reply(user.externalUserid, yes ? TPL.dateConfirmed : TPL.declined);
+  const isMan = match.manProfileId === user.profileId;
+  const mine = yes ? "yes" : "no";
+  const theirs = isMan ? match.womanReply : match.manReply;
+  const manReply = isMan ? mine : match.manReply;
+  const womanReply = isMan ? match.womanReply : mine;
+  const state = manReply === "yes" && womanReply === "yes" ? "confirmed" : mine === "no" || theirs === "no" ? "declined" : match.state === "sent" ? "chatting" : match.state;
+  await setMatchDecision(match.id, { manReply, womanReply, state });
+
+  const partnerPid = await partnerProfileId(match, user.profileId);
+  const partnerBot = await botUserByProfileId(partnerPid);
+  const tellPartner = async (text: string) => {
+    if (partnerBot) await reply(partnerBot.externalUserid, text);
+  };
+
+  if (mine === "yes" && !theirs) {
+    await reply(user.externalUserid, TPL.confirmWaiting);
+    await tellPartner(TPL.confirmPartnerAsked);
+  } else if (mine === "no" && !theirs) {
+    await reply(user.externalUserid, TPL.declined);
+    await tellPartner(TPL.confirmPartnerNo);
+  } else if (mine === "yes" && theirs === "yes") {
+    await reply(user.externalUserid, TPL.dateConfirmed);
+    await tellPartner(TPL.dateConfirmed);
+  } else if (mine === "no" && theirs === "yes") {
+    await reply(user.externalUserid, TPL.declined);
+    await tellPartner(TPL.confirmPartnerNo);
+  } else if (mine === "yes" && theirs === "no") {
+    await reply(user.externalUserid, TPL.confirmYouYesButPartnerNo);
+    await tellPartner(TPL.confirmLateYes);
+  } else {
+    await reply(user.externalUserid, TPL.declined);
+  }
   return true;
+}
+
+function decisionFact(match: { manProfileId: number; manReply: string | null; womanReply: string | null }, profileId: number) {
+  const mine = match.manProfileId === profileId ? match.manReply : match.womanReply;
+  const theirs = match.manProfileId === profileId ? match.womanReply : match.manReply;
+  const word = (value: string | null) => (value === "yes" ? "见面" : value === "no" ? "不见" : "还没回复");
+  let outcome = "还在等双方回复";
+  if (mine === "yes" && theirs === "yes") outcome = "双方都同意见面";
+  else if (mine === "no" || theirs === "no") outcome = "有一方拒绝，这次见面不成立";
+  else if (mine === "yes") outcome = "你已同意，还在等对方";
+  else if (theirs === "yes") outcome = "对方已同意，还在等你";
+  return `\n本周见面确认（这是事实，不要忽略，也不要改成双方都同意）：你的回复是${word(mine)}，对方的回复是${word(theirs)}。结论：${outcome}。`;
 }
 
 /** 回访：dating 状态的配对在周一二收集 成行/评分/是否继续 */
@@ -125,18 +173,42 @@ async function tryFeedback(user: { externalUserid: string; profileId: number | n
   return true;
 }
 
-async function chatWithMatchmaker(user: { externalUserid: string; requirements: string | null }, content: string) {
+function chatFeedbackLine(raw: string) {
+  try {
+    const parsed = JSON.parse(raw) as { feedback?: unknown };
+    if (!Array.isArray(parsed.feedback)) return "";
+    return parsed.feedback.map(String).slice(-3).join("；");
+  } catch {
+    return "";
+  }
+}
+
+async function chatWithMatchmaker(user: { externalUserid: string; profileId: number | null; requirements: string | null }, content: string) {
   const history = await recentMessages(user.externalUserid, 12);
+  const profile = user.profileId ? await getProfileById(user.profileId) : undefined;
+  const match = user.profileId ? await weekMatchForProfile(user.profileId) : undefined;
+  const feedback = profile?.chatFacts ? chatFeedbackLine(profile.chatFacts) : "";
+  const fact = match && (match.manReply || match.womanReply) ? decisionFact(match, user.profileId!) : "";
+  const masks = await nameMasks();
+  const hide = (text: string) => redactNames(text, masks, user.profileId ?? undefined);
   const messages = [
-    { role: "system" as const, content: MATCHMAKER_SYSTEM + (user.requirements ? `\n已知TA的择偶需求：${user.requirements}` : "") },
+    {
+      role: "system" as const,
+      content: hide(
+        MATCHMAKER_SYSTEM +
+          (user.requirements ? `\n已知TA的择偶需求：${user.requirements}` : "") +
+          (feedback ? `\n已存档的关键反馈：${feedback}` : "") +
+          fact,
+      ),
+    },
     ...history.map((m) => ({
       role: (m.origin === "user" ? "user" : "assistant") as "user" | "assistant",
-      content: m.content ?? "",
+      content: hide(m.content ?? ""),
     })),
-    { role: "user" as const, content },
+    { role: "user" as const, content: hide(content) },
   ];
   try {
-    const out = await chat(messages);
+    const out = hide(await chat(messages));
     await reply(user.externalUserid, out);
   } catch (err) {
     // 闲聊静默降级：业务流程消息走模板兜底，闲聊在 LLM 故障时不回复
@@ -162,7 +234,13 @@ export async function processIncomingText(externalUserid: string, content: strin
   // 异步抽取择偶需求，不阻塞回复
   void (async () => {
     const history = await recentMessages(externalUserid, 12);
-    const reqs = await extractRequirements(history.map((m) => ({ role: m.origin === "user" ? "user" : "assistant", content: m.content ?? "" })));
+    const masks = await nameMasks();
+    const reqs = await extractRequirements(
+      history.map((m) => ({
+        role: m.origin === "user" ? "user" : "assistant",
+        content: redactNames(m.content ?? "", masks, user.profileId ?? undefined),
+      })),
+    );
     if (reqs && Object.keys(reqs).length > 0) await saveRequirements(externalUserid, reqs);
   })().catch((err) => console.error("[bot] extract requirements:", err));
 }

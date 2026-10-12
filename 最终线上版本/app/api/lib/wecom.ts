@@ -25,9 +25,13 @@ export type KfMsg = {
   text?: { content?: string };
 };
 
+function sandboxMode() {
+  return process.env.BOT_SANDBOX === "1";
+}
+
 /** 拉取一批新消息（返回纯文本用户消息） */
 export async function syncWecomMessages(): Promise<KfMsg[]> {
-  if (!wecomConfigured()) return [];
+  if (sandboxMode() || !wecomConfigured()) return [];
   const token = await accessToken();
   const res = await fetch(`${BASE}/cgi-bin/kf/sync_msg?access_token=${token}`, {
     method: "POST",
@@ -45,8 +49,9 @@ export async function syncWecomMessages(): Promise<KfMsg[]> {
   return (data.msg_list ?? []).filter((m) => m.origin === 3 && m.msgtype === "text" && m.external_userid && m.text?.content);
 }
 
-/** 发送文本消息。未配置时只打日志，返回 false。 */
+/** 发送文本消息。沙箱或未配置时不触网。 */
 export async function sendWecomText(externalUserid: string, content: string): Promise<boolean> {
+  if (sandboxMode()) return false;
   if (!wecomConfigured()) {
     console.log(`[wecom mock] -> ${externalUserid}: ${content.slice(0, 120)}`);
     return false;

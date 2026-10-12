@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router'
 import Home from './pages/Home'
+import Me from './pages/Me'
 import Stats from './pages/Stats'
 import StatsV2 from './pages/StatsV2'
 import StatsV3 from './pages/StatsV3'
@@ -13,6 +14,7 @@ export default function App() {
       <VisitTracker />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/me" element={<Me />} />
         <Route path="/stats" element={<Stats />} />
         <Route path="/stats-v2" element={<StatsV2 />} />
         <Route path="/stats-v3" element={<StatsV3 />} />

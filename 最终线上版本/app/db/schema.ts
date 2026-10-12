@@ -75,6 +75,8 @@ export const profiles = mysqlTable("profiles", {
   value: text("value"),
   /** 隐私政策勾选时间（报名时记录） */
   consentAt: timestamp("consent_at"),
+  /** 月老对话合并进来的择偶需求与关键反馈，不覆盖报名表原字段 */
+  chatFacts: text("chat_facts"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -155,6 +157,15 @@ export const matches = mysqlTable("matches", {
   reason: text("reason"),
   /** pending_send / sent / chatting / confirmed / declined / dating / done / cancelled */
   state: varchar("state", { length: 16 }).notNull().default("pending_send"),
+  /** 男方是否见面：yes / no，未回复为空 */
+  manReply: varchar("man_reply", { length: 8 }),
+  /** 女方是否见面：yes / no，未回复为空 */
+  womanReply: varchar("woman_reply", { length: 8 }),
+  /** 已用小纸条的日期，JSON 字符串数组 */
+  manNoteDays: text("man_note_days"),
+  womanNoteDays: text("woman_note_days"),
+  /** 周五确认短信是否已发，避免每分钟重发 */
+  fridaySmsSent: int("friday_sms_sent").notNull().default(0),
   /** 回访：是否成行 / 评分 1-5 / 是否愿意继续 */
   met: int("met"),
   score: int("score"),
@@ -233,4 +244,14 @@ export const payments = mysqlTable("payments", {
   reason: varchar("reason", { length: 128 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+/** 用户照片（/me 页上传，最多 9 张；文件存 data/photos/，库里只存文件名） */
+export const photos = mysqlTable("photos", {
+  id: serial("id").primaryKey(),
+  profileId: bigint("profile_id", { mode: "number" }).notNull(),
+  file: varchar("file", { length: 128 }).notNull(),
+  mime: varchar("mime", { length: 32 }).notNull(),
+  size: int("size").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });

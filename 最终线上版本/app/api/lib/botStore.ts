@@ -34,10 +34,93 @@ export async function setBotState(externalUserid: string, state: string) {
 
 export async function saveRequirements(externalUserid: string, requirements: unknown) {
   await ensureTable();
-  await getDb()
+  const db = getDb();
+  const [bot] = await db.select().from(botUsers).where(eq(botUsers.externalUserid, externalUserid));
+  if (!bot) return;
+  const merged = mergeFacts(parseJson(decryptText(bot.requirements)), requirements);
+  await db
     .update(botUsers)
-    .set({ requirements: encryptText(JSON.stringify(requirements)) })
+    .set({ requirements: encryptText(JSON.stringify(merged)) })
     .where(eq(botUsers.externalUserid, externalUserid));
+  if (bot.profileId) await writeChatPreferences(bot.profileId, merged);
+}
+
+function parseJson(raw: string | null): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    const value = JSON.parse(raw) as unknown;
+    return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function mergeFacts(prev: Record<string, unknown>, next: unknown): Record<string, unknown> {
+  const incoming = next && typeof next === "object" && !Array.isArray(next) ? (next as Record<string, unknown>) : {};
+  const merged: Record<string, unknown> = { ...prev };
+  for (const [key, value] of Object.entries(incoming)) {
+    if (value == null) continue;
+    if (typeof value === "string" && !value.trim()) continue;
+    if (Array.isArray(value)) {
+      if (!value.length) continue;
+      const old = Array.isArray(prev[key]) ? prev[key].map(String) : [];
+      merged[key] = [...new Set([...old, ...value.map(String)])].slice(0, 12);
+      continue;
+    }
+    merged[key] = value;
+  }
+  return merged;
+}
+
+type ChatFacts = { preferences?: Record<string, unknown>; feedback?: string[]; updatedAt?: string };
+
+function readChatFacts(raw: string | null): ChatFacts {
+  const parsed = parseJson(raw);
+  return {
+    preferences: parsed.preferences && typeof parsed.preferences === "object" ? (parsed.preferences as Record<string, unknown>) : undefined,
+    feedback: Array.isArray(parsed.feedback) ? parsed.feedback.map(String) : [],
+    updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : undefined,
+  };
+}
+
+async function writeChatFacts(profileId: number, facts: ChatFacts) {
+  facts.updatedAt = new Date().toISOString();
+  await getDb().update(profiles).set({ chatFacts: JSON.stringify(facts) }).where(eq(profiles.id, profileId));
+}
+
+async function writeChatPreferences(profileId: number, preferences: Record<string, unknown>) {
+  const [row] = await getDb().select().from(profiles).where(eq(profiles.id, profileId));
+  if (!row) return;
+  const facts = readChatFacts(row.chatFacts);
+  facts.preferences = preferences;
+  await writeChatFacts(profileId, facts);
+}
+
+async function appendChatFeedback(profileId: number, line: string) {
+  const [row] = await getDb().select().from(profiles).where(eq(profiles.id, profileId));
+  if (!row) return;
+  const facts = readChatFacts(row.chatFacts);
+  const feedback = facts.feedback ?? [];
+  if (feedback[feedback.length - 1] === line) return;
+  facts.feedback = [...feedback, line].slice(-20);
+  await writeChatFacts(profileId, facts);
+}
+
+export function chatFactsForMatching(raw: string | null): { heightMin: number | null; text: string } {
+  const facts = readChatFacts(raw);
+  const pref = facts.preferences ?? {};
+  const height = pref.heightMin;
+  const bits = [
+    pref.regions,
+    pref.personality,
+    pref.dealbreakers,
+    pref.longTermGoal,
+    pref.notes,
+    facts.feedback,
+  ]
+    .flatMap((item) => (Array.isArray(item) ? item : item ? [String(item)] : []))
+    .filter(Boolean);
+  return { heightMin: typeof height === "number" ? height : null, text: bits.join(" ") };
 }
 
 export async function logKfMessage(row: {
@@ -94,7 +177,6 @@ export async function relayCountToday(externalUserid: string): Promise<number> {
   return Number(row?.n ?? 0);
 }
 
-/** 按姓名+微信号找最新报名行 */
 export async function findProfileByNameWechat(name: string, wechat: string) {
   await ensureTable();
   const db = getDb();
@@ -105,6 +187,12 @@ export async function findProfileByNameWechat(name: string, wechat: string) {
     .orderBy(desc(profiles.id))
     .limit(1);
   return rows[0];
+}
+
+/** 只取编号和姓名，供机器人在进模型前打码。姓名不要写进提示词。 */
+export async function nameMasks() {
+  await ensureTable();
+  return getDb().select({ id: profiles.id, name: profiles.name }).from(profiles);
 }
 
 export async function getProfileById(id: number) {
@@ -221,9 +309,43 @@ export async function updateMatchState(id: number, state: string) {
   await getDb().update(matches).set({ state }).where(eq(matches.id, id));
 }
 
+export async function setMatchDecision(
+  id: number,
+  patch: { manReply?: string | null; womanReply?: string | null; state: string },
+) {
+  await ensureTable();
+  const db = getDb();
+  await db.update(matches).set(patch).where(eq(matches.id, id));
+  if (patch.state !== "confirmed" && patch.state !== "declined") return;
+  const [match] = await db.select().from(matches).where(eq(matches.id, id));
+  if (!match) return;
+  const word = (value: string | null) => (value === "yes" ? "见面" : value === "no" ? "不见" : "未回复");
+  const line = `见面确认：男方${word(match.manReply)}，女方${word(match.womanReply)}，${patch.state === "confirmed" ? "双方同意见" : "这次不成"}`;
+  await appendChatFeedback(match.manProfileId, line);
+  await appendChatFeedback(match.womanProfileId, line);
+}
+
+/** 本周这名用户的最新一对，含已拒绝。给月老看双方是否见面。 */
+export async function weekMatchForProfile(profileId: number, weekKey = isoWeekKey()): Promise<Match | undefined> {
+  await ensureTable();
+  const rows = await getDb()
+    .select()
+    .from(matches)
+    .where(and(eq(matches.weekKey, weekKey), or(eq(matches.manProfileId, profileId), eq(matches.womanProfileId, profileId))))
+    .orderBy(desc(matches.id));
+  return rows.find((row) => row.state !== "pending_send");
+}
+
 export async function setMatchFeedback(id: number, fb: { met?: number; score?: number; willing?: string }) {
   await ensureTable();
-  await getDb().update(matches).set({ ...fb, state: "done" }).where(eq(matches.id, id));
+  const db = getDb();
+  await db.update(matches).set({ ...fb, state: "done" }).where(eq(matches.id, id));
+  const [match] = await db.select().from(matches).where(eq(matches.id, id));
+  if (!match) return;
+  const met = fb.met === 1 ? "成了" : fb.met === 0 ? "没成" : "未说成行";
+  const line = `回访：${met}，评分 ${fb.score ?? "无"}，继续 ${fb.willing ?? "未说"}`;
+  await appendChatFeedback(match.manProfileId, line);
+  await appendChatFeedback(match.womanProfileId, line);
 }
 
 export async function matchesOfWeek(weekKey: string, states?: string[]): Promise<Match[]> {

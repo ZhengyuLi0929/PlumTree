@@ -720,13 +720,17 @@ function VisitPanel() {
       </div>
 
       <Card title="最近 30 天">
-        <div className="flex items-end gap-1 h-40">
+        <div className="flex items-stretch gap-1 h-40">
           {days.map((d) => (
-            <div key={d.day} className="flex-1 flex flex-col justify-end items-center gap-1 min-w-0">
+            <div key={d.day} className="flex-1 h-full flex flex-col min-w-0" title={`${d.day.slice(5)} · ${d.count} 次`}>
+              <div style={{ flexGrow: Math.max(0, max - d.count) }} />
               <div
                 className="w-full rounded-t-sm"
-                title={`${d.day} · ${d.count}`}
-                style={{ height: `${Math.max(4, (d.count / max) * 100)}%`, background: d.count ? "#F97028" : "#F3ECD2" }}
+                style={{
+                  flexGrow: d.count,
+                  minHeight: d.count > 0 ? 4 : 0,
+                  background: d.count > 0 ? "#F97028" : "transparent",
+                }}
               />
             </div>
           ))}

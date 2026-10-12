@@ -2,6 +2,7 @@
 // 周三 20:00 生成配对进待确认队列（matched）；周五 00:00 未确认轮空（dating）；
 // 周一 10:00 回访（feedback）。所有动作落 cron_logs。tick(now) 注入时间，便于压缩时间测试。
 import { computeMatches, type PoolUser } from "./matching";
+import { chatFactsForMatching } from "./botStore";
 import {
   bumpPoolPriority,
   getCycle,
@@ -19,6 +20,7 @@ import { getDb, ensureTable } from "../queries/connection";
 import { matches } from "../../db/schema";
 import { sendWecomText } from "./wecom";
 import { TPL } from "./templates";
+import { sendFridayConfirmSms } from "./smsMatch";
 
 function cstParts(now: Date) {
   const cst = new Date(now.getTime() + 8 * 3600 * 1000);
@@ -51,10 +53,11 @@ export async function runWeeklyMatching(weekKey: string) {
     intro: profile.intro,
     expectation: profile.expectation,
     value: profile.value,
-    prefMinHeight: profile.prefMinHeight,
+    prefMinHeight: profile.prefMinHeight ?? chatFactsForMatching(profile.chatFacts).heightMin,
     prefBirthFrom: profile.prefBirthFrom,
     prefBirthTo: profile.prefBirthTo,
     acceptDistance: profile.acceptDistance,
+    chatText: chatFactsForMatching(profile.chatFacts).text || null,
   }));
 
   const excludePairs = await previousPairKeys(weekKey);
@@ -140,8 +143,14 @@ export async function tick(now = new Date()): Promise<string | null> {
     }
     return null;
   }
-  // 周五起：本周确认截止
-  if (dow === 5 || dow === 6 || dow === 0) {
+  // 周五：发确认短信。小纸条和【匹配】仍可在当天回复，所以不在周五零点取消配对。
+  if (dow === 5) {
+    const sent = await sendFridayConfirmSms(weekKey);
+    await logCron("sms.friday", { weekKey, sent });
+    return "friday-sms";
+  }
+  // 周六起：未确认的配对轮空
+  if (dow === 6 || dow === 0) {
     const cycle = await getCycle(weekKey);
     if (cycle.state === "matched") {
       const r = await closeConfirmations(weekKey);

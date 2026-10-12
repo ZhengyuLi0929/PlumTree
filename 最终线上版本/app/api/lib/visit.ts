@@ -11,6 +11,13 @@ export function cstDayKey(now = new Date()) {
   return cst.toISOString().slice(0, 10);
 }
 
+/** 在 YYYY-MM-DD 上加减天数，不经过服务器本地时区。 */
+export function shiftDayKey(dayKey: string, delta: number) {
+  const [year, month, day] = dayKey.split("-").map(Number);
+  const utc = new Date(Date.UTC(year, (month || 1) - 1, (day || 1) + delta));
+  return utc.toISOString().slice(0, 10);
+}
+
 export function classifyVisitSource(referrer: string, landing: string) {
   try {
     const landingUrl = new URL(landing, "https://www.deskcupid.com");

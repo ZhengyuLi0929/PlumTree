@@ -20,7 +20,7 @@ function fakeUser(id: number, gender: "男" | "女", extra?: Partial<PoolUser>):
     orgTag: "test", priority: 0, typeCode: ["FSRH", "FSPH", "IGRH", "IGPH"][id % 4],
     height: gender === "男" ? 172 + (id % 12) : 158 + (id % 12),
     job: "互联网", intro: `喜欢爬山和读书 ${id}`, expectation: `希望对方也喜欢爬山 ${id}`,
-    value: "真诚", prefMinHeight: null, prefBirthFrom: null, prefBirthTo: null, acceptDistance: null,
+    value: "真诚", prefMinHeight: null, prefBirthFrom: null, prefBirthTo: null, acceptDistance: null, chatText: null,
     ...extra,
   };
 }
@@ -75,6 +75,10 @@ async function schedulerTest() {
   await ensureTable();
   const db = getDb();
 
+  // 只让测试用户在池里：其他池内用户（如导入的线上数据）临时出池，跑完恢复
+  await db.update(matchPool).set({ state: "out" }).where(like(matchPool.orgTag, "%"));
+  const restorePool = () => db.update(matchPool).set({ state: "in" }).where(eq(matchPool.state, "out"));
+
   // 6 个测试用户入池（3 男 3 女，同 org_tag）
   const profs = [];
   for (let i = 0; i < 6; i++) {
@@ -96,8 +100,13 @@ async function schedulerTest() {
   assert("3 对待确认", weekMatches.length === 3 && weekMatches.every((m) => m.state === "pending_send"));
   assert("cron 日志已落", (await db.select().from(cronLogs)).length > 0);
 
-  // 周五 00:30 CST = 周四 16:30 UTC（全部未确认 → 轮空）
-  assert("周五确认截止", (await tick(new Date("2026-09-24T16:30:00Z"))) === "dating");
+  // 周五只发确认短信，未发出的待确认配对先留着
+  assert("周五发送确认短信", (await tick(new Date("2026-09-24T16:30:00Z"))) === "friday-sms");
+  const friday = await db.select().from(matches).where(eq(matches.weekKey, week));
+  assert("周五尚未轮空", friday.every((m) => m.state === "pending_send"));
+
+  // 周六 00:30 CST：仍未确认则轮空
+  assert("周六确认截止", (await tick(new Date("2026-09-25T16:30:00Z"))) === "dating");
   const after = await db.select().from(matches).where(eq(matches.weekKey, week));
   assert("未确认全部轮空", after.every((m) => m.state === "cancelled"));
   const poolAfter = await db.select().from(matchPool).where(like(matchPool.orgTag, "sched-test"));
@@ -114,6 +123,7 @@ async function schedulerTest() {
   await db.delete(profiles).where(like(profiles.sessionId, "sched-test-%"));
   await db.delete(kfMessages).where(like(kfMessages.externalUserid, "TEST_%"));
   await db.delete(botUsers).where(like(botUsers.externalUserid, "TEST_%"));
+  await restorePool();
 }
 
 async function main() {

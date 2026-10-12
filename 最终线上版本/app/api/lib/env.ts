@@ -24,11 +24,13 @@ export const env = {
   tencentSmsSdkAppId: optional("TENCENT_SMS_SDK_APP_ID"),
   tencentSmsSignName: optional("TENCENT_SMS_SIGN_NAME"),
   tencentSmsTemplateId: optional("TENCENT_SMS_TEMPLATE_ID"),
+  tencentSmsNotifyTemplateId: optional("TENCENT_SMS_NOTIFY_TEMPLATE_ID"),
   tencentSmsRegion: optional("TENCENT_SMS_REGION", "ap-guangzhou"),
   aliyunAccessKeyId: optional("ALIYUN_ACCESS_KEY_ID"),
   aliyunAccessKeySecret: optional("ALIYUN_ACCESS_KEY_SECRET"),
   smsSignName: optional("SMS_SIGN_NAME"),
   smsOtpTemplate: optional("SMS_OTP_TEMPLATE"),
+  smsNotifyTemplate: optional("SMS_NOTIFY_TEMPLATE"),
   // 微信月老机器人（企业微信客服 + LLM）
   wecomCorpid: optional("WECOM_CORPID"),
   wecomKfSecret: optional("WECOM_KF_SECRET"),

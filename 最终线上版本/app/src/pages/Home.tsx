@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import { Link } from 'react-router'
 import {
   shuffledRankings, getTypeCode, DIM_META, LOVE_LANGUAGES, RANKINGS,
 } from '@/data/questions'
@@ -282,6 +283,9 @@ function Welcome({ onStart }: { onStart: () => void }) {
         <p className="mt-6 text-xs" style={{ color: '#a3988a' }}>
           凭直觉作答，所有题目都没有对错 · 结果仅供自我觉察与娱乐
         </p>
+        <Link to="/me" className="inline-block mt-3 text-sm underline underline-offset-4" style={{ color: '#7a7060' }}>
+          已经测过？用手机号登录
+        </Link>
         <button
           type="button"
           onClick={() => setNotice(true)}

@@ -13,6 +13,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:bot": "esbuild scripts/test-bot.ts --platform=node --bundle --format=esm --outfile=dist/test-bot.mjs --alias:@db=./db --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && node dist/test-bot.mjs",
+    "sandbox": "esbuild scripts/sandbox.ts --platform=node --bundle --format=esm --outfile=dist/sandbox.mjs --alias:@db=./db --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && node dist/sandbox.mjs",
+    "sandbox:web": "esbuild scripts/sandbox-web.ts --platform=node --bundle --format=esm --outfile=dist/sandbox-web.mjs --alias:@db=./db --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && node dist/sandbox-web.mjs",
     "test:matching": "esbuild scripts/test-matching.ts --platform=node --bundle --format=esm --outfile=dist/test-matching.mjs --alias:@db=./db --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && node dist/test-matching.mjs",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",

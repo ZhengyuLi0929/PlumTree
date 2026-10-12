@@ -1,5 +1,6 @@
 // 本地 mock 全链路测试：绑定 → 闲聊（mock LLM）→ 需求抽取写库 → 传话限额 → LLM 断网静默降级。
 // 运行：npm run db:up && cp .env.example .env（填 DATABASE_URL）后执行 npm run test:bot
+process.env.BOT_SANDBOX = "1"; // 永远不触网企业微信
 import { eq, like, or } from "drizzle-orm";
 import { processIncomingText } from "../api/lib/botBrain";
 import { isoWeekKey } from "../api/lib/enroll";
@@ -62,15 +63,20 @@ async function main() {
   console.log("3) 传话 + 限额（每人每天一条）");
   await processIncomingText(UA, "你好，听说你也喜欢爬山");
   assert("传话送达确认", (await lastBotMsg(UA)).includes("递过去"));
-  const bMsgs = (await getDb().select().from(kfMessages).where(eq(kfMessages.externalUserid, UB))).filter((r) => r.origin === "bot" && (r.content ?? "").includes("月老转达"));
+  const bMsgs = (await getDb().select().from(kfMessages).where(eq(kfMessages.externalUserid, UB))).filter((r) => r.origin === "bot" && (r.content ?? "").includes("同桌的TA发来消息"));
   assert("B 收到转发", bMsgs.length === 1);
   await processIncomingText(UA, "第二条今天应该被拒");
   assert("第二条触发限额", (await lastBotMsg(UA)).includes("额度用完"));
 
-  console.log("4) 需求抽取写库（等异步任务）");
-  await new Promise((r) => setTimeout(r, 1500));
-  const [ua2] = await db.select().from(botUsers).where(eq(botUsers.externalUserid, UA));
-  assert("requirements 已写入", Boolean(ua2.requirements));
+  console.log("4) 需求抽取写库（真实 LLM 时轮询最多 30s，每 6s 补发一条触发重试）");
+  let reqs: string | null = null;
+  for (let i = 0; i < 60 && !reqs; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    if (i > 0 && i % 12 === 0) await processIncomingText(UA, "补充一点：希望对方在北京");
+    const [row] = await db.select().from(botUsers).where(eq(botUsers.externalUserid, UA));
+    reqs = row?.requirements ?? null;
+  }
+  assert("requirements 已写入", Boolean(reqs));
 
   console.log("5) LLM 断网 → 闲聊静默降级（不抛错、无回复）");
   // 用一个无配对的绑定用户走闲聊路径（有配对且在传话期的消息会走传话）

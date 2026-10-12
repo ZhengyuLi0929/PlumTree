@@ -6,13 +6,29 @@ import { ensureTable, getDb, hasDatabase } from "./queries/connection";
 import { responses, responsesV2, responsesV3, profiles, matchPairs, visits, matches, matchPool, merchants, redemptions, botUsers } from "../db/schema";
 import { logAudit } from "./lib/audit";
 import { setPoolState } from "./lib/botStore";
+import { addPhoto, listPhotos, removePhoto } from "./lib/photos";
 import {
   isoWeekKey,
   isValidInvite,
+  normalizePhone,
   normalizeWechat,
+  PHONE_RE,
+  hashOtp,
+  randomOtp,
   readEnroll,
   signEnroll,
 } from "./lib/enroll";
+import { clearOtp, getOtp, putOtp } from "./lib/otp";
+import { sendOtpSms } from "./lib/sms";
+import { smsConfigured, env } from "./lib/env";
+import { timingSafeEqual } from "node:crypto";
+import {
+  clearMemberCookieHeader,
+  memberCookieHeader,
+  memberTokenFromRequest,
+  readMemberToken,
+  signMember,
+} from "./lib/member";
 import {
   adminCookieHeader,
   adminPasswordConfigured,
@@ -22,16 +38,88 @@ import {
   signAdmin,
   tokenFromRequest,
 } from "./lib/admin";
-import { classifyVisitSource, cstDayKey } from "./lib/visit";
+import { classifyVisitSource, cstDayKey, shiftDayKey } from "./lib/visit";
 import { insertPoolEntry } from "./lib/botStore";
+import { FINAL_QUESTIONS } from "../src/data/questions-final";
 
 function fail(code: TRPCError["code"], message: string): never {
   throw new TRPCError({ code, message });
 }
 
+function previewMember() {
+  const answers: Record<string, number> = {};
+  const timings: Record<string, number> = {};
+  for (const question of FINAL_QUESTIONS) {
+    answers[String(question.id)] = question.pole === "F" || question.pole === "S" || question.pole === "R" || question.pole === "H" ? 6 : 2;
+    timings[String(question.id)] = 1200;
+  }
+  const order = ["words", "time", "gifts", "acts", "touch"];
+  return {
+    profile: {
+      name: "预览用户",
+      wechat: "preview_wx",
+      phone: "13800000000",
+      gender: "女",
+      birthYear: 1998,
+      city: "北京",
+      gradClass: "2016届7班",
+      mbti: "INFJ",
+      height: 165,
+      job: "产品经理",
+      prefMinHeight: 175,
+      prefBirthFrom: 1994,
+      prefBirthTo: 2000,
+      acceptDistance: "不接受",
+      intro: "这是本地预览用的假资料，用来看登录后的页面，不会写入数据库。",
+      expectation: "温和、有自己的事做、愿意沟通。",
+      value: "互相尊重，不冷暴力。",
+    },
+    quiz: {
+      typeCode: "ISRH",
+      gender: "女",
+      answers,
+      rankings: { rank1: order, rank2: order, rank3: order },
+      timings,
+    },
+    chatFacts: {
+      preferences: {
+        regions: ["北京"],
+        heightMin: 175,
+        personality: ["温和", "爱聊天"],
+        dealbreakers: ["抽烟"],
+        notes: "对话里补充过：希望对方在北京。",
+      },
+      feedback: ["见面确认：男方见面，女方不见，这次不成", "回访：成了，评分 4，继续 想"],
+    },
+    photos: [],
+    matches: [
+      { weekKey: "2026-W41", state: "declined", mine: "见面", theirs: "不见", met: null, score: null, willing: null },
+      { weekKey: "2026-W40", state: "done", mine: "见面", theirs: "见面", met: 1, score: 4, willing: "想" },
+    ],
+  };
+}
+
 function dbUnavailable(err: unknown): never {
   console.error("[db]", err);
   fail("INTERNAL_SERVER_ERROR", "数据库连不上。请检查 DATABASE_URL，以及 MySQL 是否已启动。");
+}
+
+/** 会员鉴权：从 cookie 里的 member token 拿手机号，取最新一条报名档案 */
+async function requireMemberProfile(req: Request) {
+  const token = memberTokenFromRequest(req);
+  if (!token) fail("UNAUTHORIZED", "请先用手机号登录");
+  let phone = "";
+  try {
+    phone = await readMemberToken(token);
+  } catch {
+    fail("UNAUTHORIZED", "登录已过期，请重新获取验证码");
+  }
+  await ensureTable();
+  const db = getDb();
+  const people = await db.select().from(profiles).where(eq(profiles.phone, phone));
+  const profile = people.sort((a, b) => b.id - a.id)[0];
+  if (!profile) fail("NOT_FOUND", "没有找到这个手机号的报名资料");
+  return profile;
 }
 
 async function requireAdmin(req: Request) {
@@ -237,6 +325,204 @@ export const responseRouter = createRouter({
     return { ok: true };
   }),
 
+  sendLoginCode: publicQuery
+    .input(z.object({ phone: z.string().min(11).max(20) }))
+    .mutation(async ({ input }) => {
+      const phone = normalizePhone(input.phone);
+      if (!PHONE_RE.test(phone)) fail("BAD_REQUEST", "请填写有效的大陆手机号");
+      if (!smsConfigured()) fail("PRECONDITION_FAILED", "短信服务还没配好，暂时不能发验证码");
+      await ensureTable();
+      const db = getDb();
+      const people = await db.select().from(profiles).where(eq(profiles.phone, phone));
+      if (people.length === 0) fail("NOT_FOUND", "这个手机号还没有报名记录");
+      const now = Date.now();
+      const existing = await getOtp(phone);
+      if (existing && now - existing.sentAt < 60_000) fail("TOO_MANY_REQUESTS", "验证码刚发过，请 60 秒后再试");
+      let hourStarted = existing?.hourStarted ?? now;
+      let hourCount = existing?.hourCount ?? 0;
+      if (now - hourStarted > 3_600_000) {
+        hourStarted = now;
+        hourCount = 0;
+      }
+      if (hourCount >= 5) fail("TOO_MANY_REQUESTS", "这个小时的验证码次数用完了");
+      const code = randomOtp();
+      await sendOtpSms(phone, code);
+      await putOtp({
+        phone,
+        codeHash: hashOtp(phone, code),
+        expiresAt: now + 10 * 60_000,
+        sentAt: now,
+        hourStarted,
+        hourCount: hourCount + 1,
+      });
+      return { ok: true };
+    }),
+
+  verifyLoginCode: publicQuery
+    .input(z.object({ phone: z.string().min(11).max(20), code: z.string().regex(/^\d{6}$/) }))
+    .mutation(async ({ input, ctx }) => {
+      const phone = normalizePhone(input.phone);
+      if (!PHONE_RE.test(phone)) fail("BAD_REQUEST", "请填写有效的大陆手机号");
+      const row = await getOtp(phone);
+      const now = Date.now();
+      if (!row || row.expiresAt < now) fail("BAD_REQUEST", "验证码已过期，请重新获取");
+      const actual = Buffer.from(hashOtp(phone, input.code));
+      const expected = Buffer.from(row.codeHash);
+      if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+        fail("UNAUTHORIZED", "验证码不对");
+      }
+      await clearOtp(phone);
+      ctx.resHeaders.append("Set-Cookie", memberCookieHeader(await signMember(phone)));
+      return { ok: true };
+    }),
+
+  memberLogout: publicQuery.mutation(async ({ ctx }) => {
+    ctx.resHeaders.append("Set-Cookie", clearMemberCookieHeader());
+    return { ok: true };
+  }),
+
+  memberMe: publicQuery
+    .input(z.object({ preview: z.boolean().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+    if (input?.preview) {
+      if (env.isProduction) fail("FORBIDDEN", "预览只在本地开发打开");
+      return previewMember();
+    }
+    const token = memberTokenFromRequest(ctx.req);
+    if (!token) fail("UNAUTHORIZED", "请先用手机号登录");
+    let phone = "";
+    try {
+      phone = await readMemberToken(token);
+    } catch {
+      fail("UNAUTHORIZED", "登录已过期，请重新获取验证码");
+    }
+    await ensureTable();
+    const db = getDb();
+    const people = await db.select().from(profiles).where(eq(profiles.phone, phone));
+    const profile = people.sort((a, b) => b.id - a.id)[0];
+    if (!profile) fail("NOT_FOUND", "没有找到这个手机号的报名资料");
+    const quizzes = await db.select().from(responsesV3).where(eq(responsesV3.sessionId, profile.sessionId));
+    const quiz = quizzes.sort((a, b) => b.id - a.id)[0];
+    const pairRows = await db
+      .select()
+      .from(matches)
+      .where(or(eq(matches.manProfileId, profile.id), eq(matches.womanProfileId, profile.id)));
+    const recent = pairRows.sort((a, b) => b.id - a.id).slice(0, 5);
+    let chatFacts: { preferences?: Record<string, unknown>; feedback?: string[] } = {};
+    if (profile.chatFacts) {
+      try {
+        chatFacts = JSON.parse(profile.chatFacts) as typeof chatFacts;
+      } catch {
+        chatFacts = {};
+      }
+    }
+    const word = (value: string | null) => (value === "yes" ? "见面" : value === "no" ? "不见" : "未回复");
+    return {
+      profile: {
+        name: profile.name,
+        wechat: profile.wechat,
+        phone: profile.phone,
+        gender: profile.gender,
+        birthYear: profile.birthYear,
+        city: profile.city,
+        gradClass: profile.gradClass,
+        mbti: profile.mbti,
+        height: profile.height,
+        job: profile.job,
+        prefMinHeight: profile.prefMinHeight,
+        prefBirthFrom: profile.prefBirthFrom,
+        prefBirthTo: profile.prefBirthTo,
+        acceptDistance: profile.acceptDistance,
+        intro: profile.intro,
+        expectation: profile.expectation,
+        value: profile.value,
+      },
+      photos: await listPhotos(profile.id),
+      quiz: quiz
+        ? {
+            typeCode: quiz.typeCode,
+            gender: quiz.gender,
+            answers: JSON.parse(quiz.answers) as Record<string, number>,
+            rankings: JSON.parse(quiz.rankings) as Record<string, string[]>,
+            timings: JSON.parse(quiz.timings) as Record<string, number>,
+          }
+        : null,
+      chatFacts,
+      matches: recent.map((row) => {
+        const mine = row.manProfileId === profile.id ? row.manReply : row.womanReply;
+        const theirs = row.manProfileId === profile.id ? row.womanReply : row.manReply;
+        return {
+          weekKey: row.weekKey,
+          state: row.state,
+          mine: word(mine),
+          theirs: word(theirs),
+          met: row.met,
+          score: row.score,
+          willing: row.willing,
+        };
+      }),
+    };
+  }),
+
+  /** 会员修改自己的资料（白名单字段；姓名/性别/出生年/手机不可改） */
+  memberUpdate: publicQuery
+    .input(
+      z.object({
+        wechat: z.string().trim().min(2).max(64).optional(),
+        city: z.string().trim().min(1).max(64).optional(),
+        gradClass: z.string().trim().min(1).max(64).optional(),
+        mbti: z.string().trim().max(8).optional(),
+        height: z.number().int().min(130).max(230).nullable().optional(),
+        job: z.string().trim().max(64).optional(),
+        prefMinHeight: z.number().int().min(140).max(210).nullable().optional(),
+        prefBirthFrom: z.number().int().min(currentYear - 80).max(currentYear - 16).nullable().optional(),
+        prefBirthTo: z.number().int().min(currentYear - 80).max(currentYear - 16).nullable().optional(),
+        acceptDistance: z.enum(["接受", "不接受", "看情况"]).nullable().optional(),
+        intro: z.string().trim().min(30).max(300).optional(),
+        expectation: z.string().trim().max(300).optional(),
+        value: z.string().trim().max(300).optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const profile = await requireMemberProfile(ctx.req);
+      const patch: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(input)) {
+        if (v !== undefined) patch[k] = v === "" ? null : v;
+      }
+      if (Object.keys(patch).length === 0) fail("BAD_REQUEST", "没有要修改的字段");
+      if (
+        patch.prefBirthFrom != null &&
+        patch.prefBirthTo != null &&
+        (patch.prefBirthFrom as number) > (patch.prefBirthTo as number)
+      ) {
+        fail("BAD_REQUEST", "期望出生年范围下限不能大于上限");
+      }
+      await getDb().update(profiles).set(patch).where(eq(profiles.id, profile.id));
+      return { ok: true };
+    }),
+
+  /** 上传照片（base64，最多 9 张） */
+  memberUploadPhoto: publicQuery
+    .input(z.object({ mime: z.string().max(32), dataBase64: z.string().max(12_000_000) }))
+    .mutation(async ({ input, ctx }) => {
+      const profile = await requireMemberProfile(ctx.req);
+      try {
+        const photo = await addPhoto(profile.id, input.mime, input.dataBase64);
+        return { ok: true as const, photo };
+      } catch (err) {
+        fail("BAD_REQUEST", err instanceof Error ? err.message : "上传失败");
+      }
+    }),
+
+  memberDeletePhoto: publicQuery
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const profile = await requireMemberProfile(ctx.req);
+      const ok = await removePhoto(profile.id, input.id);
+      if (!ok) fail("NOT_FOUND", "照片不存在");
+      return { ok: true };
+    }),
+
   adminMe: publicQuery.query(async ({ ctx }) => {
     await requireAdmin(ctx.req);
     return { ok: true };
@@ -274,28 +560,23 @@ export const responseRouter = createRouter({
     await ensureTable();
     const rows = await getDb().select().from(visits);
     const today = cstDayKey();
-    const cutoff = (() => {
-      const d = new Date(`${today}T00:00:00+08:00`);
-      d.setDate(d.getDate() - 29);
-      return cstDayKey(d);
-    })();
+    const cutoff = shiftDayKey(today, -29);
 
     const byDay = new Map<string, number>();
     const bySource = new Map<string, number>();
     let total = 0;
     let todayCount = 0;
     for (const row of rows) {
+      const dayKey = String(row.dayKey).slice(0, 10);
       total += 1;
-      if (row.dayKey === today) todayCount += 1;
-      if (row.dayKey >= cutoff) byDay.set(row.dayKey, (byDay.get(row.dayKey) ?? 0) + 1);
+      if (dayKey === today) todayCount += 1;
+      if (dayKey >= cutoff && dayKey <= today) byDay.set(dayKey, (byDay.get(dayKey) ?? 0) + 1);
       bySource.set(row.source, (bySource.get(row.source) ?? 0) + 1);
     }
 
     const days: { day: string; count: number }[] = [];
     for (let i = 29; i >= 0; i--) {
-      const d = new Date(`${today}T00:00:00+08:00`);
-      d.setDate(d.getDate() - i);
-      const key = cstDayKey(d);
+      const key = shiftDayKey(today, -i);
       days.push({ day: key, count: byDay.get(key) ?? 0 });
     }
 

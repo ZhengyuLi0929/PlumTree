@@ -19,6 +19,30 @@ const EXTRACT_PROMPT = `你是信息抽取器。根据「月老」机器人与�
 只输出 JSON 对象，字段全部可选，没有提到的不要编：
 {"ageMin":number,"ageMax":number,"heightMin":number,"regions":string[],"personality":string[],"dealbreakers":string[],"longTermGoal":string,"notes":string}`;
 
+function parseJsonObject(text: string): unknown {
+  const start = text.indexOf("{");
+  if (start < 0) throw new SyntaxError("no json object");
+  let depth = 0;
+  let inStr = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inStr) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === "{") depth += 1;
+    else if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) return JSON.parse(text.slice(start, i + 1));
+    }
+  }
+  throw new SyntaxError("unterminated json");
+}
+
 export async function extractRequirements(history: { role: string; content: string }[]): Promise<Requirements | null> {
   if (history.length === 0) return null;
   const text = history.map((h) => `${h.role === "user" ? "用户" : "月老"}：${h.content}`).join("\n");
@@ -30,7 +54,7 @@ export async function extractRequirements(history: { role: string; content: stri
       ],
       { json: true, timeoutMs: 20_000 },
     );
-    const parsed = requirementsSchema.safeParse(JSON.parse(out));
+    const parsed = requirementsSchema.safeParse(parseJsonObject(out));
     return parsed.success ? parsed.data : null;
   } catch (err) {
     console.error("[requirements]", err);

@@ -38,7 +38,7 @@ function utcDate(timestamp: number) {
   return `${y}-${m}-${d}`;
 }
 
-async function sendTencentOtpSms(phone: string, code: string) {
+async function sendTencentOtpSms(phone: string, code: string, templateId = env.tencentSmsTemplateId) {
   const secretId = env.tencentSecretId;
   const secretKey = env.tencentSecretKey;
   const timestamp = Math.floor(Date.now() / 1000);
@@ -47,7 +47,7 @@ async function sendTencentOtpSms(phone: string, code: string) {
     PhoneNumberSet: [toE164Cn(phone)],
     SmsSdkAppId: env.tencentSmsSdkAppId,
     SignName: env.tencentSmsSignName,
-    TemplateId: env.tencentSmsTemplateId,
+    TemplateId: templateId,
     TemplateParamSet: [code],
   });
 
@@ -103,7 +103,7 @@ async function sendTencentOtpSms(phone: string, code: string) {
   }
 }
 
-async function sendAliyunOtpSms(phone: string, code: string) {
+async function sendAliyunOtpSms(phone: string, code: string, templateCode = env.smsOtpTemplate) {
   const params: Record<string, string> = {
     AccessKeyId: env.aliyunAccessKeyId,
     Action: "SendSms",
@@ -114,7 +114,7 @@ async function sendAliyunOtpSms(phone: string, code: string) {
     SignatureMethod: "HMAC-SHA1",
     SignatureNonce: randomBytes(16).toString("hex"),
     SignatureVersion: "1.0",
-    TemplateCode: env.smsOtpTemplate,
+    TemplateCode: templateCode,
     TemplateParam: JSON.stringify({ code }),
     Timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
     Version: "2017-05-25",
@@ -153,4 +153,27 @@ export async function sendOtpSms(phone: string, code: string) {
     return;
   }
   throw new Error("短信服务未配置");
+}
+
+/** 匹配介绍、小纸条、确认。未配置短信时只记日志，不抛错。模板只有一个变量，正文放进该变量。 */
+export async function sendNotifySms(phone: string, text: string): Promise<boolean> {
+  if (!smsConfigured()) {
+    console.log(`[sms] not configured, outbound: ${text}`);
+    return false;
+  }
+  try {
+    if (tencentSmsConfigured()) {
+      await sendTencentOtpSms(phone, text, env.tencentSmsNotifyTemplateId || env.tencentSmsTemplateId);
+      return true;
+    }
+    if (aliyunSmsConfigured()) {
+      await sendAliyunOtpSms(phone, text, env.smsNotifyTemplate || env.smsOtpTemplate);
+      return true;
+    }
+  } catch (err) {
+    console.error("[sms] notify failed", err instanceof Error ? err.message : "send failed");
+    return false;
+  }
+  console.log(`[sms] not configured, outbound: ${text}`);
+  return false;
 }

@@ -91,6 +91,7 @@ const DDL = [
     expectation text,
     \`value\` text,
     consent_at timestamp NULL,
+    chat_facts text,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS otp_codes (
@@ -154,6 +155,11 @@ const DDL = [
     woman_profile_id bigint NOT NULL,
     reason text,
     state varchar(16) NOT NULL DEFAULT 'pending_send',
+    man_reply varchar(8),
+    woman_reply varchar(8),
+    man_note_days text,
+    woman_note_days text,
+    friday_sms_sent int NOT NULL DEFAULT 0,
     met int,
     score int,
     willing varchar(8),
@@ -213,6 +219,15 @@ const DDL = [
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS photos (
+    id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    profile_id bigint NOT NULL,
+    file varchar(128) NOT NULL,
+    mime varchar(32) NOT NULL,
+    size int NOT NULL,
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_photos_profile (profile_id)
+  )`,
 ];
 
 export async function ensureTable() {
@@ -230,6 +245,12 @@ export async function ensureTable() {
       `ALTER TABLE profiles ADD COLUMN pref_birth_to int`,
       `ALTER TABLE profiles ADD COLUMN accept_distance varchar(8)`,
       `ALTER TABLE profiles ADD COLUMN consent_at timestamp NULL`,
+      `ALTER TABLE profiles ADD COLUMN chat_facts text`,
+      `ALTER TABLE matches ADD COLUMN man_reply varchar(8)`,
+      `ALTER TABLE matches ADD COLUMN woman_reply varchar(8)`,
+      `ALTER TABLE matches ADD COLUMN man_note_days text`,
+      `ALTER TABLE matches ADD COLUMN woman_note_days text`,
+      `ALTER TABLE matches ADD COLUMN friday_sms_sent int NOT NULL DEFAULT 0`,
     ];
     for (const sql of alters) {
       try {

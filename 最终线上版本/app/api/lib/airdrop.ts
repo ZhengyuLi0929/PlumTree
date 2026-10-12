@@ -1,14 +1,15 @@
-// 空投发送：管理员在后台确认后，把配对结果通过月老机器人发给双方。
+// 空投发送：管理员确认后，用短信把本周对象发给双方。不走微信客服。
 import { eq } from "drizzle-orm";
-import { matches, profiles, botUsers, responsesV3 } from "../../db/schema";
+import { matches, profiles, responsesV3 } from "../../db/schema";
 import { ensureTable, getDb } from "../queries/connection";
-import { TPL } from "./templates";
-import { sendWecomText } from "./wecom";
-import { logCron } from "./botStore";
+import { logCron, nameMasks } from "./botStore";
+import { redactNames } from "./maskName";
+import { sendNotifySms } from "./sms";
+import { wednesdayAirdropSms } from "./smsMatch";
 
 function cardOf(p: typeof profiles.$inferSelect, typeCode: string | null) {
   return [
-    `${p.name}，${p.birthYear} 年生`,
+    `${p.birthYear} 年生`,
     p.city,
     p.job || null,
     p.height ? `身高 ${p.height}cm` : null,
@@ -41,14 +42,15 @@ export async function sendAirdrop(matchId: number): Promise<{ sent: number; tota
     [man, woman],
     [woman, man],
   ] as const) {
-    const [bot] = await db.select().from(botUsers).where(eq(botUsers.profileId, self.id));
-    if (!bot) continue; // 未绑定月老的用户跳过，后台会标注
-    const text = TPL.airdrop(`${cardOf(partner, typeOf(partner.sessionId))}。推荐理由：${match.reason ?? "组织者人工精选"}`);
-    await sendWecomText(bot.externalUserid, text);
+    if (!self.phone) continue;
+    const masks = await nameMasks();
+    const reason = redactNames(match.reason ?? "组织者人工精选", masks);
+    const text = wednesdayAirdropSms(`${cardOf(partner, typeOf(partner.sessionId))}。推荐理由：${reason}`);
+    await sendNotifySms(self.phone, text);
     sent++;
   }
 
   await db.update(matches).set({ state: "sent" }).where(eq(matches.id, matchId));
-  await logCron("airdrop.sent", { matchId, sent });
+  await logCron("airdrop.sms", { matchId, sent });
   return { sent, total: 2 };
 }
