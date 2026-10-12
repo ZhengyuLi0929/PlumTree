@@ -787,7 +787,7 @@ export const responseRouter = createRouter({
 
   /** 上传照片（base64，最多 9 张） */
   memberUploadPhoto: publicQuery
-    .input(z.object({ mime: z.string().max(32), dataBase64: z.string().max(12_000_000) }))
+    .input(z.object({ mime: z.string().max(32), dataBase64: z.string().max(12_000_000, "图片太大，请换一张小一点的（手机照片直接传一般都没问题）") }))
     .mutation(async ({ input, ctx }) => {
       const profile = await requireMemberProfile(ctx.req);
       try {

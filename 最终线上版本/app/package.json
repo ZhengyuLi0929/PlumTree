@@ -17,6 +17,7 @@
     "sandbox:web": "esbuild scripts/sandbox-web.ts --platform=node --bundle --format=esm --outfile=dist/sandbox-web.mjs --alias:@db=./db --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && node dist/sandbox-web.mjs",
     "test:matching": "esbuild scripts/test-matching.ts --platform=node --bundle --format=esm --outfile=dist/test-matching.mjs --alias:@db=./db --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && node dist/test-matching.mjs",
     "test:member": "esbuild scripts/test-member.ts --platform=node --bundle --format=esm --outfile=dist/test-member.mjs --alias:@db=./db --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && node dist/test-member.mjs",
+    "test:all": "esbuild scripts/test-all.ts --platform=node --bundle --format=esm --outfile=dist/test-all.mjs --alias:@db=./db --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && node dist/test-all.mjs",
     "gen:passwords": "esbuild scripts/gen-passwords.ts --platform=node --bundle --format=esm --outfile=dist/gen-passwords.mjs --alias:@db=./db --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && node dist/gen-passwords.mjs",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",

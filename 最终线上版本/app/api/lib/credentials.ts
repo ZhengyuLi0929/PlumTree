@@ -6,8 +6,9 @@ import { memberCredentials } from "../../db/schema";
 import { ensureTable, getDb } from "../queries/connection";
 import { env } from "./env";
 
-export function hashPassword(phone: string, password: string) {
-  return createHash("sha256").update(`${env.appSecret || "dev-enroll-secret"}:${phone}:${password}`).digest("hex");
+export function hashPassword(password: string) {
+  // 不加手机号盐：用户改手机号时凭证直接随迁（手机号做盐会导致迁移后哈希失配）
+  return createHash("sha256").update(`${env.appSecret || "dev-enroll-secret"}:${password}`).digest("hex");
 }
 
 /** 8 位初始密码：小写字母+数字，至少一字母一数字 */
@@ -26,8 +27,8 @@ export async function setPassword(phone: string, password: string) {
   await ensureTable();
   await getDb()
     .insert(memberCredentials)
-    .values({ phone, passwordHash: hashPassword(phone, password) })
-    .onDuplicateKeyUpdate({ set: { passwordHash: hashPassword(phone, password) } });
+    .values({ phone, passwordHash: hashPassword(password) })
+    .onDuplicateKeyUpdate({ set: { passwordHash: hashPassword(password) } });
 }
 
 /** 返回 true=密码正确；null=还没发过初始密码 */
@@ -35,7 +36,7 @@ export async function verifyPassword(phone: string, password: string): Promise<b
   await ensureTable();
   const [row] = await getDb().select().from(memberCredentials).where(eq(memberCredentials.phone, phone));
   if (!row) return null;
-  const a = Buffer.from(hashPassword(phone, password));
+  const a = Buffer.from(hashPassword(password));
   const b = Buffer.from(row.passwordHash);
   return a.length === b.length && timingSafeEqual(a, b);
 }

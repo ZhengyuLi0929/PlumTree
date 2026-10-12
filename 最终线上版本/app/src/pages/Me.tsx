@@ -227,6 +227,10 @@ function PhotoWall({ photos, preview }: { photos: Photo[]; preview: boolean }) {
       return;
     }
     const { dataBase64, mime } = await compressImage(file);
+    if (dataBase64.length > 11_000_000) {
+      setErr("这张图片太大了，换一张小一点的试试（一般手机照片都没问题）");
+      return;
+    }
     upload.mutate(
       { mime, dataBase64 },
       {
