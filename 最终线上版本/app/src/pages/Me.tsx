@@ -183,6 +183,32 @@ function Toast({ msg }: { msg: string }) {
 }
 
 /* ---------- 照片墙（最多 9 张；预览模式只进本地 state，不调接口） ---------- */
+/** 上传前压缩：最长边 1600px、JPEG 0.85。手机原图 5MB → 约 300KB，快且不会撞 nginx 上限 */
+async function compressImage(file: File): Promise<{ dataBase64: string; mime: string }> {
+  const toBase64 = (blob: Blob) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no canvas");
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob>((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("compress failed"))), "image/jpeg", 0.85));
+    return { dataBase64: await toBase64(blob), mime: "image/jpeg" };
+  } catch {
+    // HEIC 等浏览器解不了的格式：原样传（服务端仍做 8MB 校验）
+    return { dataBase64: await toBase64(file), mime: file.type };
+  }
+}
+
 function PhotoWall({ photos, preview }: { photos: Photo[]; preview: boolean }) {
   const utils = trpc.useUtils();
   const upload = trpc.responses.memberUploadPhoto.useMutation();
@@ -200,15 +226,9 @@ function PhotoWall({ photos, preview }: { photos: Photo[]; preview: boolean }) {
       setLocalPhotos((list) => [...list, { id: -(++localId.current), url: URL.createObjectURL(file) }]);
       return;
     }
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-    const base64 = dataUrl.split(",")[1] ?? "";
+    const { dataBase64, mime } = await compressImage(file);
     upload.mutate(
-      { mime: file.type, dataBase64: base64 },
+      { mime, dataBase64 },
       {
         onSuccess: () => void utils.responses.memberMe.invalidate(),
         onError: (e) => setErr(trpcErrorMessage(e, "上传失败")),
@@ -660,7 +680,7 @@ function ChangePasswordCard() {
 
 /* ---------- 本周约会倾向（三个多选下拉） ---------- */
 const DATE_LOCATIONS = [
-  "国贸/CBD", "三里屯/亮马桥", "五道口/中关村", "什刹海/白塔寺/五道营", "酒仙桥/798/望京",
+  "国贸/CBD", "三里屯/亮马桥", "五道口/中关村", "什刹海/白塔寺/五道营", "五棵松",
 ];
 const DATE_ACTIVITIES = ["一起吃顿饭", "喝杯下午茶", "一起做手工（轧染/画画/拼豆/烘焙）"];
 const DATE_TIMES = ["周六上午", "周六下午", "周六晚上", "周日上午", "周日下午", "周日晚上"];
