@@ -704,7 +704,7 @@ export const responseRouter = createRouter({
       z.object({
         locations: z.array(z.string().max(32)).max(17),
         activities: z.array(z.string().max(32)).max(5),
-        times: z.array(z.string().max(16)).max(4),
+        times: z.array(z.string().max(16)).max(6),
         customLocation: z.string().trim().max(100).optional(),
         customActivity: z.string().trim().max(100).optional(),
       }),
@@ -743,7 +743,7 @@ export const responseRouter = createRouter({
           .object({
             locations: z.array(z.string().max(32)).max(17),
             activities: z.array(z.string().max(32)).max(5),
-            times: z.array(z.string().max(16)).max(4),
+            times: z.array(z.string().max(16)).max(6),
             customLocation: z.string().trim().max(100).optional(),
             customActivity: z.string().trim().max(100).optional(),
           })
