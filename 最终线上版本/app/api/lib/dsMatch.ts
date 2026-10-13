@@ -1,10 +1,11 @@
 // DeepSeek 匹配管线（从 deskcupid-ai-matching 移植进主应用，随部署上线）。
 // 流程：读库 → 去重 → 硬过滤（异地/同班）→ 代号化脱敏 → DeepSeek 三轮打分 → 局部/全局最优。
-import { eq } from "drizzle-orm";
-import { profiles, settings } from "../../db/schema";
+import { eq, and } from "drizzle-orm";
+import { profiles, matches, settings } from "../../db/schema";
 import { ensureTable, getDb } from "../queries/connection";
 import { chat } from "./llm";
 import { logCron } from "./botStore";
+import { isoWeekKey } from "./enroll";
 
 // ===== 键值配置 =====
 export async function getSetting(key: string): Promise<string | null> {
@@ -76,7 +77,7 @@ export type PoolData = {
   eligible: { man: string; woman: string }[];
   skipped: { man: string; woman: string; reason: string }[];
   droppedDuplicates: { name: string; keptWechat: string; droppedWechat: string }[];
-  idMap: Record<string, { name: string; city: string; gradClass: string; location: string; classKey: string | null }>;
+  idMap: Record<string, { profileId: number; name: string; city: string; gradClass: string; location: string; classKey: string | null }>;
 };
 
 export type SideScore = { rounds: number[]; reasons: string[] };
@@ -169,6 +170,7 @@ export function preparePoolData(rows: ProfileRow[]): PoolData {
   const idMap: PoolData["idMap"] = {};
   for (const r of unique) {
     idMap[idOf.get(r.id)!] = {
+      profileId: r.id,
       name: r.name,
       city: r.city ?? "",
       gradClass: r.gradClass ?? "",
@@ -267,12 +269,14 @@ type DsScoreResponse = {
 };
 
 const BATCH = 8;
-const CONCURRENCY = 8;
+const CONCURRENCY = 5; // DeepSeek 限流敏感，别拉满
+const RETRY_BACKOFF = [2000, 5000, 10000];
 
 export async function scorePool(
   pool: PoolData,
   promptTemplate: string,
   onProgress?: (done: number, total: number) => void,
+  onError?: (selfId: string, selfName: string, err: unknown) => void,
 ): Promise<Map<string, Map<string, SideScore>>> {
   const men = new Map(pool.men.map((c) => [c.id, c]));
   const women = new Map(pool.women.map((c) => [c.id, c]));
@@ -305,7 +309,9 @@ export async function scorePool(
         .replace("{candidates}", batch.map(cardText).join("\n\n"));
       const expected = batch.map((c) => c.id);
       let batchOut: Map<string, SideScore> | null = null;
+      let lastErr: unknown = null;
       for (let attempt = 0; attempt < 3 && !batchOut; attempt++) {
+        if (attempt > 0) await sleep(RETRY_BACKOFF[attempt - 1] ?? 8000);
         try {
           const text = await chat([
             { role: "system", content: "只输出合法 JSON 对象。不要输出姓名。" },
@@ -324,11 +330,16 @@ export async function scorePool(
           // 校验：候选一个不少、理由不为空，否则重试
           const complete = expected.every((id) => map.has(id)) && [...map.values()].every((s) => s.reasons.every((r) => r.trim().length > 0));
           if (complete) batchOut = map;
-        } catch {
-          batchOut = null;
+          else lastErr = new Error("候选缺漏或理由为空");
+        } catch (err) {
+          lastErr = err;
         }
       }
-      if (!batchOut) throw new Error(`${task.self.id} 打分连续失败`);
+      if (!batchOut) {
+        const name = pool.idMap[task.self.id]?.name ?? task.self.id;
+        onError?.(task.self.id, name, lastErr);
+        throw new Error(`${task.self.id}（${name}）连续失败：${lastErr instanceof Error ? lastErr.message : String(lastErr)}`);
+      }
       for (const [k, v] of batchOut) out.set(k, v);
     }
     results.set(task.self.id, out);
@@ -476,11 +487,15 @@ export function aggregateResults(pool: PoolData, scores: Map<string, Map<string,
 }
 
 // ===== 任务执行（后台 job） =====
-type Job = { state: "idle" | "running" | "done" | "error"; done: number; total: number; startedAt: number; error?: string };
-const job: Job = { state: "idle", done: 0, total: 0, startedAt: 0 };
+type Job = { state: "idle" | "running" | "done" | "error"; done: number; total: number; startedAt: number; error?: string; errors: string[] };
+const job: Job = { state: "idle", done: 0, total: 0, startedAt: 0, errors: [] };
 
 export function matchJobStatus() {
-  return { ...job };
+  return { ...job, errors: [...job.errors] };
+}
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 export async function runDeepseekMatch(): Promise<void> {
@@ -490,23 +505,49 @@ export async function runDeepseekMatch(): Promise<void> {
   job.total = 0;
   job.startedAt = Date.now();
   job.error = undefined;
+  job.errors = [];
   try {
     const prompt = (await getSetting(DS_PROMPT_KEY)) ?? DEFAULT_DS_PROMPT;
     await ensureTable();
     const db = getDb();
     const rows = await db.select().from(profiles);
     const pool = preparePoolData(rows);
-    const scores = await scorePool(pool, prompt, (done, total) => {
-      job.done = done;
-      job.total = total;
-    });
+    const scores = await scorePool(
+      pool,
+      prompt,
+      (done, total) => {
+        job.done = done;
+        job.total = total;
+      },
+      (selfId, selfName, err) => {
+        const msg = `${selfId}（${selfName}）：${err instanceof Error ? err.message : String(err)}`;
+        if (job.errors.length < 20) job.errors.push(msg);
+      },
+    );
     const result = aggregateResults(pool, scores);
+
+    // AI 配对写回 matches 表（pending_send），接上空投/短信流程：只替换本周待发送的旧记录
+    const weekKey = isoWeekKey();
+    await db.delete(matches).where(and(eq(matches.weekKey, weekKey), eq(matches.state, "pending_send")));
+    for (const p of result.globalPairs) {
+      const man = Object.values(pool.idMap).find((x) => x.name === p.man);
+      const woman = Object.values(pool.idMap).find((x) => x.name === p.woman);
+      if (!man || !woman) continue;
+      await db.insert(matches).values({
+        weekKey,
+        manProfileId: man.profileId,
+        womanProfileId: woman.profileId,
+        reason: `AI匹配 · 和谐 ${p.harmony}（男 ${p.manSat} / 女 ${p.womanSat}）`,
+        state: "pending_send",
+      });
+    }
+
     await setSetting(DS_RESULT_KEY, JSON.stringify(result));
     await logCron("dsMatch.done", { eligible: result.eligibleCount, pairs: result.globalPairs.length, sum: result.globalSum });
     job.state = "done";
   } catch (err) {
     job.state = "error";
     job.error = err instanceof Error ? err.message : String(err);
-    await logCron("dsMatch.error", job.error);
+    await logCron("dsMatch.error", { error: job.error, errors: job.errors });
   }
 }

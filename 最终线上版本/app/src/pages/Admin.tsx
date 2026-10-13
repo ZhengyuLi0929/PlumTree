@@ -155,14 +155,13 @@ function AdminDesk({ onLogout }: { onLogout: () => void }) {
       </div>
       <div className="flex gap-2 mb-6 flex-wrap">
         <TabBtn active={tab === "match"} onClick={() => setTab("match")}>手动匹配</TabBtn>
-        <TabBtn active={tab === "dsmatch"} onClick={() => setTab("dsmatch")}>开始匹配</TabBtn>
-        <TabBtn active={tab === "airdrop"} onClick={() => setTab("airdrop")}>空投队列</TabBtn>
-        <TabBtn active={tab === "pool"} onClick={() => setTab("pool")}>匹配池</TabBtn>
+        <TabBtn active={tab === "dsmatch"} onClick={() => setTab("dsmatch")}>AI匹配</TabBtn>
+        <TabBtn active={tab === "airdrop"} onClick={() => setTab("airdrop")}>匹配结果</TabBtn>
         <TabBtn active={tab === "merchant"} onClick={() => setTab("merchant")}>商户核销</TabBtn>
         <TabBtn active={tab === "ops"} onClick={() => setTab("ops")}>运营指标</TabBtn>
         <TabBtn active={tab === "visits"} onClick={() => setTab("visits")}>访问统计</TabBtn>
       </div>
-      {tab === "match" ? <MatchPanel /> : tab === "dsmatch" ? <DsMatchPanel /> : tab === "airdrop" ? <AirdropPanel /> : tab === "pool" ? <PoolPanel /> : tab === "merchant" ? <MerchantPanel /> : tab === "ops" ? <OpsPanel /> : <VisitPanel />}
+      {tab === "match" ? <MatchPanel /> : tab === "dsmatch" ? <DsMatchPanel /> : tab === "airdrop" ? <AirdropPanel /> : tab === "merchant" ? <MerchantPanel /> : tab === "ops" ? <OpsPanel /> : <VisitPanel />}
     </Shell>
   );
 }
@@ -287,7 +286,19 @@ function DsMatchPanel() {
             />
           </div>
         )}
-        {status.data?.state === "error" && <p className="text-sm mt-2" style={{ color: "#9a3412" }}>上次运行失败：{status.data.error}</p>}
+        {status.data?.state === "error" && (
+          <div className="mt-3 rounded-xl p-3" style={{ background: "#FDEAE0" }}>
+            <p className="text-sm font-semibold" style={{ color: "#9a3412" }}>上次运行失败：{status.data.error}</p>
+            {(status.data.errors ?? []).length > 0 && (
+              <ul className="text-xs mt-1.5 space-y-1" style={{ color: "#9a3412" }}>
+                {(status.data.errors ?? []).map((e, i) => (
+                  <li key={i}>· {e}</li>
+                ))}
+              </ul>
+            )}
+            <p className="text-xs mt-2" style={{ color: "#a3988a" }}>常见原因：DeepSeek 限流（429）、模型返回非法 JSON、网络超时。已自动降并发并退避重试，仍失败请隔几分钟再点一次。</p>
+          </div>
+        )}
       </Card>
 
       {data ? (
@@ -385,7 +396,7 @@ function AirdropPanel() {
         </div>
       )}
       <Card title={`本周配对 · ${items.length}`}>
-        {items.length === 0 && <p className="text-sm" style={{ color: "#a3988a" }}>本周还没有配对（周三 20:00 调度器生成）。</p>}
+        {items.length === 0 && <p className="text-sm" style={{ color: "#a3988a" }}>本周还没有配对（在「AI匹配」里跑一轮，或周三 20:00 调度器自动生成）。</p>}
         <div className="flex flex-col gap-2">
           {items.map((i) => (
             <div key={i.id} className="rounded-2xl p-3 flex items-center justify-between gap-3 flex-wrap" style={{ background: "#FBF3E3" }}>
@@ -413,69 +424,41 @@ function AirdropPanel() {
           ))}
         </div>
       </Card>
+
+      <ManualPairsCard />
     </>
   );
 }
 
-function PoolPanel() {
-  const q = trpc.responses.poolList.useQuery(undefined, { refetchInterval: 30000 });
-  const setState = trpc.responses.poolSetState.useMutation();
-  const setTag = trpc.responses.poolSetOrgTag.useMutation();
+/** 手动配对（「手动匹配」页签里配的对，存在 match_pairs 表） */
+function ManualPairsCard() {
+  const roster = trpc.responses.roster.useQuery(undefined, { refetchInterval: 30000 });
+  const removePair = trpc.responses.removePair.useMutation();
   const utils = trpc.useUtils();
-  const [err, setErr] = useState("");
-
-  const run = async (p: Promise<unknown>) => {
-    setErr("");
-    try { await p; await utils.responses.poolList.invalidate(); } catch (e) { setErr(trpcErrorMessage(e)); }
-  };
-
-  if (q.isLoading) return <p className="text-center py-16 font-display" style={{ color: "#a3988a" }}>加载中…</p>;
-  if (q.error || !q.data) return <p className="text-sm" style={{ color: "#a3988a" }}>暂无数据（需要数据库连接正常）。</p>;
-
+  if (!roster.data) return null;
+  const pairs = roster.data.pairs;
+  if (pairs.length === 0) return null;
+  const nameOf = new Map(roster.data.users.map((u) => [u.sessionId, u.name]));
   return (
-    <>
-      <p className="text-sm mb-4" style={{ color: "#7a7060" }}>
-        报名即自动入池（org_tag 默认 default）。匹配只在同一 org_tag 内发生；差评用户进「复核」。
-      </p>
-      {err && <p className="text-sm mb-3 font-semibold" style={{ color: "#F97028" }}>{err}</p>}
-      <Card title={`匹配池 · ${q.data.length} 人`}>
-        <div className="flex flex-col gap-2">
-          {q.data.map((u) => (
-            <div key={u.profileId} className="rounded-2xl px-3 py-2.5 flex items-center justify-between gap-2 flex-wrap" style={{ background: "#FBF3E3" }}>
-              <p className="text-sm" style={{ color: "#121212" }}>
-                <span className="font-display">{u.name}</span>
-                <span className="text-xs" style={{ color: "#a3988a" }}> · {u.gender} · {u.city} · {u.orgTag}{u.priority > 0 ? ` · 优先${u.priority}` : ""}{u.participate ? " · ✅本周参加" : ""}</span>
-              </p>
-              <div className="flex gap-1.5 items-center">
-                {(["in", "out", "review"] as const).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => run(setState.mutateAsync({ profileId: u.profileId, state: s }))}
-                    className="text-xs px-3 py-1.5 rounded-full"
-                    style={{
-                      background: u.state === s ? "#F97028" : "#FFFDF6",
-                      color: u.state === s ? "#FFFDF6" : "#7a7060",
-                    }}
-                  >
-                    {s === "in" ? "在池" : s === "out" ? "出池" : "复核"}
-                  </button>
-                ))}
-                <button
-                  onClick={() => {
-                    const tag = window.prompt("新的 org_tag", u.orgTag);
-                    if (tag && tag.trim()) void run(setTag.mutateAsync({ profileId: u.profileId, orgTag: tag.trim() }));
-                  }}
-                  className="text-xs px-3 py-1.5 rounded-full"
-                  style={{ background: "#FFFDF6", color: "#7a7060" }}
-                >
-                  改标签
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
-    </>
+    <Card title={`手动配对 · ${pairs.length} 对`}>
+      <div className="flex flex-col gap-2">
+        {pairs.map((p) => (
+          <div key={p.id} className="rounded-2xl p-3 flex items-center justify-between gap-3" style={{ background: "#FBF3E3" }}>
+            <p className="text-sm" style={{ color: "#121212" }}>
+              {nameOf.get(p.leftSession) ?? p.leftSession.slice(0, 8)} × {nameOf.get(p.rightSession) ?? p.rightSession.slice(0, 8)}
+              {p.note ? <span className="text-xs" style={{ color: "#a3988a" }}> · {p.note}</span> : null}
+            </p>
+            <button
+              onClick={() => void removePair.mutateAsync({ id: Number(p.id) }).then(() => utils.responses.roster.invalidate())}
+              className="text-xs px-3 py-2 rounded-full shrink-0"
+              style={{ background: "#FFFDF6", color: "#7a7060" }}
+            >
+              解除
+            </button>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 
