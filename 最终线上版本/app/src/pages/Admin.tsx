@@ -26,6 +26,7 @@ type User = {
   expectation: string | null;
   value: string | null;
   typeCode: string | null;
+  participate: boolean;
   answers: Record<string, number>;
   rankings: Record<string, string[]>;
   timings: Record<string, number>;
@@ -797,8 +798,10 @@ function MatchPanel() {
   };
 
   const singles = (data?.users ?? []).filter((u) => !pairedIds.has(u.sessionId) && matchKeyword(u));
-  const males = singles.filter((u) => u.gender === "男");
-  const females = singles.filter((u) => u.gender === "女");
+  const inMales = singles.filter((u) => u.participate && u.gender === "男");
+  const inFemales = singles.filter((u) => u.participate && u.gender === "女");
+  const outMales = singles.filter((u) => !u.participate && u.gender === "男");
+  const outFemales = singles.filter((u) => !u.participate && u.gender === "女");
 
   const refresh = async (p: Promise<unknown>) => {
     setErr("");
@@ -893,12 +896,23 @@ function MatchPanel() {
         </div>
       </Card>
 
+      <p className="text-xs mb-3 font-semibold" style={{ color: "#3a7d5c" }}>✅ 参加本周匹配（{inMales.length + inFemales.length} 人）</p>
       <div className="grid md:grid-cols-2 gap-4">
-        <Card title={`未匹配男生 · ${males.length}`}>
-          <List users={males} pick={pick} onToggle={toggle} onOpen={setOpenId} />
+        <Card title={`男生 · ${inMales.length}`}>
+          <List users={inMales} pick={pick} onToggle={toggle} onOpen={setOpenId} />
         </Card>
-        <Card title={`未匹配女生 · ${females.length}`}>
-          <List users={females} pick={pick} onToggle={toggle} onOpen={setOpenId} />
+        <Card title={`女生 · ${inFemales.length}`}>
+          <List users={inFemales} pick={pick} onToggle={toggle} onOpen={setOpenId} />
+        </Card>
+      </div>
+
+      <p className="text-xs mb-3 mt-2 font-semibold" style={{ color: "#a3988a" }}>未参加本周匹配（{outMales.length + outFemales.length} 人）</p>
+      <div className="grid md:grid-cols-2 gap-4">
+        <Card title={`男生 · ${outMales.length}`}>
+          <List users={outMales} pick={pick} onToggle={toggle} onOpen={setOpenId} />
+        </Card>
+        <Card title={`女生 · ${outFemales.length}`}>
+          <List users={outFemales} pick={pick} onToggle={toggle} onOpen={setOpenId} />
         </Card>
       </div>
 

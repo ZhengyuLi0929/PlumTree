@@ -959,6 +959,7 @@ export const responseRouter = createRouter({
         expectation: p.expectation,
         value: p.value,
         typeCode: quiz?.typeCode ?? null,
+        participate: participatesThisWeek(p.datePrefs),
         answers: quiz ? (JSON.parse(quiz.answers) as Record<string, number>) : {},
         rankings: quiz ? (JSON.parse(quiz.rankings) as Record<string, string[]>) : {},
         timings: quiz ? (JSON.parse(quiz.timings) as Record<string, number>) : {},

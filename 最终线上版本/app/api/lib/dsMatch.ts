@@ -9,6 +9,7 @@ import { chat } from "./llm";
 import { logCron } from "./botStore";
 import { isoWeekKey } from "./enroll";
 import { scorePair, type PoolUser } from "./matching";
+import { participatesThisWeek } from "./botStore";
 
 // ===== 键值配置 =====
 export async function getSetting(key: string): Promise<string | null> {
@@ -542,7 +543,10 @@ export async function runDeepseekMatch(): Promise<void> {
     const tunables = await getTunables();
     await ensureTable();
     const db = getDb();
-    const rows = await db.select().from(profiles);
+    const allRows = await db.select().from(profiles);
+    // 只匹配在 /me 打开了「参加本周约会」开关的用户（默认不参加）
+    const rows = allRows.filter((r) => participatesThisWeek(r.datePrefs));
+    job.errors.push(`参加本周匹配 ${new Set(rows.map((r) => r.id)).size} 人 / 报名共 ${new Set(allRows.map((r) => r.id)).size} 人（其余未开开关）`);
     const { responsesV3 } = await import("../../db/schema");
     const quizRows = await db.select().from(responsesV3);
     const bySession = new Map<string, string>();
