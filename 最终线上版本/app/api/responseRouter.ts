@@ -1060,6 +1060,61 @@ export const responseRouter = createRouter({
       return { ok: true, ...r };
     }),
 
+  /** 预览将要发送的短信内容（不发送），并告知短信服务是否已配置 */
+  airdropPreview: publicQuery
+    .input(z.object({ id: z.coerce.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      await requireAdmin(ctx.req);
+      const { previewAirdrop } = await import("./lib/airdrop");
+      return previewAirdrop(input.id);
+    }),
+
+  /** 单个用户全量资料（手动匹配弹窗用：档案 + 测验 + 照片 + 约会倾向） */
+  userDetail: publicQuery
+    .input(z.object({ sessionId: z.string().min(8).max(64) }))
+    .query(async ({ input, ctx }) => {
+      await requireAdmin(ctx.req);
+      await ensureTable();
+      const db = getDb();
+      const people = await db.select().from(profiles).where(eq(profiles.sessionId, input.sessionId));
+      const profile = people.sort((a, b) => b.id - a.id)[0];
+      if (!profile) fail("NOT_FOUND", "没有找到这个人的报名资料");
+      const { listPhotos } = await import("./lib/photos");
+      const { participatesThisWeek } = await import("./lib/botStore");
+      let datePrefs: Record<string, unknown> | null = null;
+      try {
+        datePrefs = profile.datePrefs ? (JSON.parse(profile.datePrefs) as Record<string, unknown>) : null;
+      } catch {
+        datePrefs = null;
+      }
+      return {
+        profile: {
+          name: profile.name,
+          wechat: profile.wechat,
+          phone: profile.phone,
+          gender: profile.gender,
+          birthYear: profile.birthYear,
+          city: profile.city,
+          gradClass: profile.gradClass,
+          mbti: profile.mbti,
+          height: profile.height,
+          job: profile.job,
+          prefMinHeight: profile.prefMinHeight,
+          prefBirthFrom: profile.prefBirthFrom,
+          prefBirthTo: profile.prefBirthTo,
+          acceptDistance: profile.acceptDistance,
+          intro: profile.intro,
+          expectation: profile.expectation,
+          value: profile.value,
+          consentAt: profile.consentAt,
+          createdAt: profile.createdAt,
+        },
+        photos: await listPhotos(profile.id),
+        datePrefs,
+        participate: participatesThisWeek(profile.datePrefs),
+      };
+    }),
+
   confirmAllAirdrops: publicQuery.mutation(async ({ ctx }) => {
     await requireAdmin(ctx.req);
     await ensureTable();

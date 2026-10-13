@@ -236,6 +236,11 @@ function DsMatchPanel() {
   useEffect(() => {
     if (tunablesQ.data) { setTopK(tunablesQ.data.topK); setConc(tunablesQ.data.concurrency); }
   }, [tunablesQ.data]);
+  // 任务跑完（done）时主动刷新结果，否则轮询一停就停在「还没有跑过匹配」
+  useEffect(() => {
+    if (status.data?.state === "done") void utils.responses.dsMatchResult.invalidate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status.data?.state]);
 
   const data = result.data as DsResult | null;
   const start = () => {
@@ -414,10 +419,10 @@ const MATCH_STATE_LABEL: Record<string, string> = {
 
 function AirdropPanel() {
   const q = trpc.responses.airdropQueue.useQuery(undefined, { refetchInterval: 20000 });
-  const confirmOne = trpc.responses.confirmAirdrop.useMutation();
   const confirmAll = trpc.responses.confirmAllAirdrops.useMutation();
   const utils = trpc.useUtils();
   const [err, setErr] = useState("");
+  const [previewFor, setPreviewFor] = useState<number | null>(null);
 
   const run = async (p: Promise<unknown>) => {
     setErr("");
@@ -428,12 +433,13 @@ function AirdropPanel() {
   if (q.error || !q.data) return <p className="text-sm" style={{ color: "#a3988a" }}>暂无数据（需要数据库连接正常）。</p>;
   const items = q.data.items;
   const pending = items.filter((i) => i.state === "pending_send");
+  const previewItem = previewFor != null ? items.find((i) => i.id === previewFor) ?? null : null;
 
   return (
     <>
       <p className="text-sm mb-4" style={{ color: "#7a7060" }}>
         本周 {q.data.weekKey} · 共 {items.length} 对 · 待确认 {pending.length} 对。
-        确认后通过月老机器人发给双方（未绑定月老的用户会标注）。
+        确认前先预览短信内容；短信服务未配置时只会展示、不会真的发出。
       </p>
       {err && <p className="text-sm mb-3 font-semibold" style={{ color: "#F97028" }}>{err}</p>}
       {pending.length > 0 && (
@@ -465,9 +471,8 @@ function AirdropPanel() {
               </div>
               {i.state === "pending_send" && (
                 <button
-                  onClick={() => run(confirmOne.mutateAsync({ id: i.id }))}
-                  disabled={confirmOne.isPending}
-                  className="text-xs px-4 py-2 rounded-full shrink-0 disabled:opacity-50"
+                  onClick={() => setPreviewFor(i.id)}
+                  className="text-xs px-4 py-2 rounded-full shrink-0"
                   style={{ background: "#F97028", color: "#FFFDF6" }}
                 >
                   确认发送
@@ -479,7 +484,81 @@ function AirdropPanel() {
       </Card>
 
       <ManualPairsCard />
+      {previewItem && (
+        <AirdropPreviewDialog
+          item={previewItem}
+          onClose={(sent) => {
+            setPreviewFor(null);
+            if (sent) void utils.responses.airdropQueue.invalidate();
+          }}
+        />
+      )}
     </>
+  );
+}
+
+/** 确认发送前的预览弹窗：展示将发出的短信内容；短信未配置时明确提示，不会假装发送 */
+function AirdropPreviewDialog({ item, onClose }: {
+  item: { id: number; man: string; woman: string };
+  onClose: (sent: boolean) => void;
+}) {
+  const preview = trpc.responses.airdropPreview.useQuery({ id: item.id });
+  const confirm = trpc.responses.confirmAirdrop.useMutation();
+  const [sendResult, setSendResult] = useState<string[] | null>(null);
+  const [err, setErr] = useState("");
+  const data = preview.data;
+
+  const doSend = () => {
+    setErr("");
+    confirm.mutate({ id: item.id }, {
+      onSuccess: (r) => setSendResult(r.details ?? [`已发送 ${r.sent}/${r.total}`]),
+      onError: (e) => setErr(trpcErrorMessage(e)),
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(18,18,18,0.45)" }} onClick={() => onClose(Boolean(sendResult))}>
+      <div className="w-full max-w-lg max-h-[85vh] overflow-auto rounded-3xl p-6" style={{ background: "#FFFDF6" }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-start mb-3">
+          <h2 className="font-display text-xl" style={{ color: "#121212" }}>{item.man} × {item.woman} · 发送预览</h2>
+          <button onClick={() => onClose(Boolean(sendResult))} className="text-sm px-3 py-1 rounded-full" style={{ background: "#FBF3E3", color: "#7a7060" }}>关闭</button>
+        </div>
+        {preview.isLoading && <p className="text-sm" style={{ color: "#a3988a" }}>加载中…</p>}
+        {data && !data.smsConfigured && !sendResult && (
+          <div className="rounded-xl p-3 mb-3" style={{ background: "#FDEAE0" }}>
+            <p className="text-sm font-semibold" style={{ color: "#9a3412" }}>短信服务还没有配置好，现在点发送也发不出去。</p>
+            <p className="text-xs mt-1" style={{ color: "#7a7060" }}>下面是配好之后会发给双方的短信内容（仅预览，不会真的发送）。</p>
+          </div>
+        )}
+        {data && (
+          <div className="flex flex-col gap-2 mb-4">
+            {data.texts.map((t, i) => (
+              <div key={i} className="rounded-xl p-3" style={{ background: "#FBF3E3" }}>
+                <p className="text-xs font-semibold mb-1" style={{ color: "#F97028" }}>发给 {t.name}（{t.phone}）</p>
+                <p className="text-sm leading-relaxed" style={{ color: "#3d3830" }}>{t.text}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        {err && <p className="text-sm mb-2" style={{ color: "#9a3412" }}>{err}</p>}
+        {sendResult ? (
+          <div className="rounded-xl p-3 mb-3" style={{ background: "#EAF5EE" }}>
+            {sendResult.map((d, i) => <p key={i} className="text-sm" style={{ color: "#3d3830" }}>{d}</p>)}
+          </div>
+        ) : (
+          data?.smsConfigured && (
+            <button
+              onClick={doSend}
+              disabled={confirm.isPending}
+              className="w-full font-display text-base py-3 rounded-full disabled:opacity-50"
+              style={{ background: "#F97028", color: "#FFFDF6" }}
+            >
+              {confirm.isPending ? "发送中…" : "确认发送这两条短信"}
+            </button>
+          )
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -661,8 +740,6 @@ function OpsPanel() {
           <p className="text-xs mt-1" style={{ color: "#a3988a" }}>回访中实际见面占比</p></Card>
         <Card title="回访均分"><p className="font-display text-3xl" style={{ color: "#F97028" }}>{fmt(d.avgScore)}</p>
           <p className="text-xs mt-1" style={{ color: "#a3988a" }}>1–5 分</p></Card>
-        <Card title="池内性别比"><p className="font-display text-3xl" style={{ color: "#F97028" }}>{d.poolMen} : {d.poolWomen}</p>
-          <p className="text-xs mt-1" style={{ color: "#a3988a" }}>男 : 女（在池）</p></Card>
         <Card title="差评待复核"><p className="font-display text-3xl" style={{ color: "#F97028" }}>{d.poolReview} 人</p>
           <p className="text-xs mt-1" style={{ color: "#a3988a" }}>回访评分 ≤2 自动出池</p></Card>
       </div>
@@ -846,6 +923,9 @@ function UserDialog({
   onToggle: () => void;
 }) {
   const quiz = quizView(user);
+  const detail = trpc.responses.userDetail.useQuery({ sessionId: user.sessionId });
+  const d = detail.data;
+  const dp = (d?.datePrefs ?? null) as { locations?: string[]; activities?: string[]; times?: string[]; customLocation?: string; customActivity?: string } | null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(18,18,18,0.45)" }} onClick={onClose}>
       <div className="w-full max-w-lg max-h-[85vh] overflow-auto rounded-3xl p-6" style={{ background: "#FFFDF6" }} onClick={(e) => e.stopPropagation()}>
@@ -853,7 +933,18 @@ function UserDialog({
           <h2 className="font-display text-xl" style={{ color: "#121212" }}>{user.name}</h2>
           <button onClick={onClose} className="text-sm px-3 py-1 rounded-full" style={{ background: "#FBF3E3", color: "#7a7060" }}>关闭</button>
         </div>
+
+        {/* 照片墙 */}
+        {d && d.photos.length > 0 && (
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            {d.photos.map((p: { id: number; url: string }) => (
+              <img key={p.id} src={p.url} alt="" className="aspect-square rounded-2xl object-cover" style={{ background: "#F3ECD2" }} />
+            ))}
+          </div>
+        )}
+
         <Row label="微信" value={user.wechat} />
+        <Row label="手机" value={d?.profile.phone} />
         <Row label="性别" value={user.gender} />
         <Row label="城市 / 出生年 / 届别" value={`${user.city ?? "—"} · ${user.birthYear ?? "—"} · ${user.gradClass ?? "—"}`} />
         <Row label="MBTI / 身高" value={[user.mbti, user.height].filter(Boolean).join(" · ")} />
@@ -873,6 +964,26 @@ function UserDialog({
         <Row label="介绍" value={user.intro} />
         <Row label="期待" value={user.expectation} />
         <Row label="看重" value={user.value} />
+
+        {/* 本周约会倾向 */}
+        {d && (d.participate || dp) && (
+          <div className="mt-3 rounded-xl p-3" style={{ background: d.participate ? "#EAF5EE" : "#FBF3E3" }}>
+            <p className="text-xs font-semibold mb-1" style={{ color: "#7a7060" }}>
+              本周约会倾向：{d.participate ? "✅ 参加" : "未参加（填过倾向但没开开关）"}
+            </p>
+            {dp && (
+              <p className="text-xs leading-relaxed" style={{ color: "#5a5347" }}>
+                {[
+                  dp.locations?.length ? `地点：${dp.locations.join("、")}` : "",
+                  dp.activities?.length ? `活动：${dp.activities.join("、")}` : "",
+                  dp.times?.length ? `时间：${dp.times.join("、")}` : "",
+                  dp.customLocation ? `其他地点：${dp.customLocation}` : "",
+                  dp.customActivity ? `其他活动：${dp.customActivity}` : "",
+                ].filter(Boolean).join(" · ")}
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="mt-4 pt-4" style={{ borderTop: "1px solid #F3ECD2" }}>
           <p className="font-display text-sm mb-2" style={{ color: "#121212" }}>测评结果</p>
