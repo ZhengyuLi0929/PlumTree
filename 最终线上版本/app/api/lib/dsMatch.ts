@@ -1,11 +1,14 @@
-// DeepSeek 匹配管线（从 deskcupid-ai-matching 移植进主应用，随部署上线）。
-// 流程：读库 → 去重 → 硬过滤（异地/同班）→ 代号化脱敏 → DeepSeek 三轮打分 → 局部/全局最优。
+// DeepSeek 匹配管线 v2（从 deskcupid-ai-matching 移植并重写打分结构）。
+// v2 变化：① 规则匹配先给每人预筛 topK 候选（零成本砍掉大部分对）；
+// ② 打分按「对」调用（一次请求评一对的双方视角，JSON 小、几乎不失败、
+// token 消耗约为 v1 的 1/10）；③ 单对失败不拖垮全局，结果里列失败清单。
 import { eq, and } from "drizzle-orm";
 import { profiles, matches, settings } from "../../db/schema";
 import { ensureTable, getDb } from "../queries/connection";
 import { chat } from "./llm";
 import { logCron } from "./botStore";
 import { isoWeekKey } from "./enroll";
+import { scorePair, type PoolUser } from "./matching";
 
 // ===== 键值配置 =====
 export async function getSetting(key: string): Promise<string | null> {
@@ -22,35 +25,40 @@ export async function setSetting(key: string, value: string) {
     .onDuplicateKeyUpdate({ set: { value } });
 }
 
-export const DS_PROMPT_KEY = "dsMatch:prompt";
+export const DS_PROMPT_KEY = "dsMatch:promptV2";
 export const DS_RESULT_KEY = "dsMatch:lastResult";
+export const DS_TUNABLES_KEY = "dsMatch:tunables";
 
-export const DEFAULT_DS_PROMPT = `你在做一场校友配对的「谈恋爱打分」。你必须完全代入 {role_label}（代号 {self_id}）。
-你不知道任何人的真实姓名，也不许猜测姓名。对方只用代号。
+export type DsTunables = { topK: number; concurrency: number };
+export const DEFAULT_TUNABLES: DsTunables = { topK: 8, concurrency: 5 };
 
-## 你的资料
-{self_card}
+export async function getTunables(): Promise<DsTunables> {
+  const raw = await getSetting(DS_TUNABLES_KEY);
+  if (!raw) return DEFAULT_TUNABLES;
+  try {
+    const parsed = JSON.parse(raw) as Partial<DsTunables>;
+    return {
+      topK: Math.max(1, Math.min(30, parsed.topK ?? DEFAULT_TUNABLES.topK)),
+      concurrency: Math.max(1, Math.min(10, parsed.concurrency ?? DEFAULT_TUNABLES.concurrency)),
+    };
+  } catch {
+    return DEFAULT_TUNABLES;
+  }
+}
 
-## 候选对象
-下面每个人都已经通过硬规则：同城、不同班。不要再因为城市或同班加减分。
-{candidates}
+export const DEFAULT_DS_PROMPT = `你在做一场校友配对。给这一对分别从男方视角和女方视角打分（0–100 的整数），每一方打三轮：r1 初见（第一眼会不会想认识）、r2 相处一个月（日常能不能过）、r3 认真长期（要不要把关系当真）。每一轮都必须写一句中文理由（20–60 字），引用资料里的原话/事实，不要编造。
+资料几乎空白时分数落在 42–58，并在理由里写「资料不足」。
+若对方踩了资料里写明的雷区（最低身高、出生年范围、不接受异地等），那一方的 r3 打 0–29 并写明踩了哪条。
+不要猜测或提及真实姓名，不要提恋爱人格四字母代码。
 
-## 你要做的事
-对每一位候选人打三次分，每次都是 0 到 100 的整数，并且每一次都必须写一句中文理由（20–60 字）。理由要引用对方或你自己资料里的原话/事实，方便人类微调提示词。
+## 男方（代号 {man_id}）
+{man_card}
 
-三次分别是：
-1. r1 初见：第一眼会不会想认识
-2. r2 相处一个月：日常能不能过
-3. r3 认真长期：要不要把关系当真
-
-三次分数不要故意打成一样。资料几乎空白时，三次都落在 42–58，并在理由里写「资料不足」。
-对方踩了你写明的雷区（身高必须更高、不抽烟不喝酒、不要律师/公务员/文史哲、拒绝冷暴力等），r3 打到 0–29，并在理由里写踩了哪条。
-「对对方的硬要求」若写明（最低身高、出生年范围、是否接受异地），候选人不满足时按踩雷区处理，r3 打到 0–29 并写明是哪条。
-「恋爱维度」是 51 题测评算出的百分比（如 亲密距离 融合72%/独立28%），可作参考；但不要在理由里提及或猜测恋爱人格四字母代码。不要编造资料里没有的事实。
+## 女方（代号 {woman_id}）
+{woman_card}
 
 ## 只输出 JSON
-{"self":"SELF_ID","scores":[{"them":"对方代号","r1":0,"r1_why":"初见理由","r2":0,"r2_why":"相处一个月理由","r3":0,"r3_why":"认真长期理由"}]}
-scores 必须覆盖上面每一位候选人，一个不能少。把 SELF_ID 换成你的代号。`;
+{"man":{"r1":0,"r1_why":"","r2":0,"r2_why":"","r3":0,"r3_why":""},"woman":{"r1":0,"r1_why":"","r2":0,"r2_why":"","r3":0,"r3_why":""}}`;
 
 // ===== 类型 =====
 type ProfileRow = typeof profiles.$inferSelect;
@@ -66,6 +74,7 @@ export type MaskedCard = {
   prefBirthFrom: number | null;
   prefBirthTo: number | null;
   acceptDistance: string;
+  typeCode: string | null;
   intro: string;
   expectation: string;
   value: string;
@@ -88,6 +97,7 @@ export type MatchResult = {
   globalSum: number;
   droppedDuplicates: PoolData["droppedDuplicates"];
   skippedCount: { 异地: number; 同班: number };
+  scoringFailures: string[];
   globalPairs: { man: string; woman: string; manSat: number; womanSat: number; harmony: number; manReasons: string[]; womanReasons: string[] }[];
   localMen: { person: string; best: string | null; harmony: number; manSat: number; womanSat: number; manReasons: string[]; womanReasons: string[] }[];
   localWomen: { person: string; best: string | null; harmony: number; manSat: number; womanSat: number; manReasons: string[]; womanReasons: string[] }[];
@@ -95,7 +105,7 @@ export type MatchResult = {
   unmatchedWomen: string[];
 };
 
-// ===== 去重（同 enrich.py） =====
+// ===== 去重与硬过滤 =====
 function normWechat(raw: string | null | undefined) {
   return (raw ?? "").replace(/\s+/g, "").trim().toLowerCase();
 }
@@ -129,8 +139,7 @@ function redactText(text: string, people: { name: string; code: string }[]) {
   return out;
 }
 
-export function preparePoolData(rows: ProfileRow[]): PoolData {
-  // 1. 按微信号去重（同人取 id 最大），再按姓名合并微信打错的重复
+export function preparePoolData(rows: ProfileRow[], typeCodeOf: (sessionId: string) => string | null): PoolData {
   const byKey = new Map<string, ProfileRow>();
   for (const r of rows) {
     const key = normWechat(r.wechat) || `name:${r.name.trim()}`;
@@ -150,11 +159,7 @@ export function preparePoolData(rows: ProfileRow[]): PoolData {
     for (const loser of sorted.slice(1)) {
       const key = normWechat(loser.wechat) || `name:${loser.name.trim()}`;
       byKey.delete(key);
-      droppedDuplicates.push({
-        name,
-        keptWechat: sorted[0].wechat,
-        droppedWechat: loser.wechat,
-      });
+      droppedDuplicates.push({ name, keptWechat: sorted[0].wechat, droppedWechat: loser.wechat });
     }
   }
 
@@ -190,9 +195,10 @@ export function preparePoolData(rows: ProfileRow[]): PoolData {
     prefBirthFrom: r.prefBirthFrom,
     prefBirthTo: r.prefBirthTo,
     acceptDistance: r.acceptDistance ?? "",
-    intro: redactText(r.intro ?? "", allPeople),
-    expectation: redactText(r.expectation ?? "", allPeople),
-    value: redactText(r.value ?? "", allPeople),
+    typeCode: typeCodeOf(r.sessionId),
+    intro: redactText(r.intro ?? "", allPeople).slice(0, 160),
+    expectation: redactText(r.expectation ?? "", allPeople).slice(0, 120),
+    value: redactText(r.value ?? "", allPeople).slice(0, 80),
   });
 
   const menCards = men.map(toCard);
@@ -203,13 +209,12 @@ export function preparePoolData(rows: ProfileRow[]): PoolData {
     for (const w of womenCards) {
       const mi = idMap[m.id];
       const wi = idMap[w.id];
-      const mn = mi.name, wn = wi.name;
       if (mi.location !== wi.location) {
-        skipped.push({ man: mn, woman: wn, reason: "异地" });
+        skipped.push({ man: mi.name, woman: wi.name, reason: "异地" });
         continue;
       }
       if (mi.classKey && wi.classKey && mi.classKey === wi.classKey) {
-        skipped.push({ man: mn, woman: wn, reason: "同班" });
+        skipped.push({ man: mi.name, woman: wi.name, reason: "同班" });
         continue;
       }
       eligible.push({ man: m.id, woman: w.id });
@@ -218,7 +223,59 @@ export function preparePoolData(rows: ProfileRow[]): PoolData {
   return { men: menCards, women: womenCards, eligible, skipped, droppedDuplicates, idMap };
 }
 
-// ===== 打分 =====
+// ===== 规则预筛（零成本砍掉大部分对） =====
+function ruleUser(card: MaskedCard, idMap: PoolData["idMap"]): PoolUser {
+  return {
+    profileId: idMap[card.id].profileId,
+    name: idMap[card.id].name,
+    gender: card.gender,
+    birthYear: card.birthYear ?? 1997,
+    city: idMap[card.id].location,
+    orgTag: "ds",
+    priority: 0,
+    typeCode: card.typeCode,
+    height: card.heightCm,
+    job: card.job || null,
+    intro: card.intro || null,
+    expectation: card.expectation || null,
+    value: card.value || null,
+    prefMinHeight: card.prefMinHeight,
+    prefBirthFrom: card.prefBirthFrom,
+    prefBirthTo: card.prefBirthTo,
+    acceptDistance: card.acceptDistance || null,
+    chatText: null,
+  };
+}
+
+/** 规则硬雷区过滤 + 每人按规则分预筛 topK。返回新的 eligible 与被规则硬雷区剔除的对。 */
+export function prefilterEligible(pool: PoolData, topK: number): { eligible: PoolData["eligible"]; hardDropped: number } {
+  const scored: { man: string; woman: string; score: number }[] = [];
+  let hardDropped = 0;
+  const menById = new Map(pool.men.map((c) => [c.id, c]));
+  const womenById = new Map(pool.women.map((c) => [c.id, c]));
+  for (const e of pool.eligible) {
+    const m = menById.get(e.man)!;
+    const w = womenById.get(e.woman)!;
+    const s = scorePair(ruleUser(m, pool.idMap), ruleUser(w, pool.idMap));
+    if (!s) { hardDropped++; continue; }
+    scored.push({ man: e.man, woman: e.woman, score: s.score });
+  }
+  // 每人保留规则分最高的 topK 个候选（双向取并集）
+  const keep = new Set<string>();
+  const byMan = new Map<string, typeof scored>();
+  const byWoman = new Map<string, typeof scored>();
+  for (const s of scored) {
+    byMan.set(s.man, [...(byMan.get(s.man) ?? []), s]);
+    byWoman.set(s.woman, [...(byWoman.get(s.woman) ?? []), s]);
+  }
+  for (const list of [...byMan.values(), ...byWoman.values()]) {
+    list.sort((a, b) => b.score - a.score);
+    for (const s of list.slice(0, topK)) keep.add(`${s.man}|${s.woman}`);
+  }
+  return { eligible: scored.filter((s) => keep.has(`${s.man}|${s.woman}`)).map((s) => ({ man: s.man, woman: s.woman })), hardDropped };
+}
+
+// ===== 卡文本 =====
 function prefText(card: MaskedCard) {
   const parts: string[] = [];
   if (card.prefMinHeight) parts.push(`身高≥${card.prefMinHeight}cm`);
@@ -229,8 +286,6 @@ function prefText(card: MaskedCard) {
 
 function cardText(card: MaskedCard) {
   return [
-    `代号: ${card.id}`,
-    `性别: ${card.gender}`,
     `出生年: ${card.birthYear ?? "未填"}`,
     `身高: ${card.heightCm ? `${card.heightCm}cm` : "未填"}`,
     `MBTI: ${card.mbti || "未填"}`,
@@ -238,10 +293,11 @@ function cardText(card: MaskedCard) {
     `对对方的硬要求: ${prefText(card)}`,
     `自我介绍: ${card.intro || "（空）"}`,
     `理想型: ${card.expectation || "（空）"}`,
-    `一段关系里最看重: ${card.value || "（空）"}`,
+    `最看重: ${card.value || "（空）"}`,
   ].join("\n");
 }
 
+// ===== 按对打分 =====
 function parseJsonObject(text: string): unknown {
   const start = text.indexOf("{");
   if (start < 0) throw new SyntaxError("no json object");
@@ -264,99 +320,81 @@ function parseJsonObject(text: string): unknown {
   throw new SyntaxError("unterminated json");
 }
 
-type DsScoreResponse = {
-  scores?: { them?: string; r1?: number; r2?: number; r3?: number; r1_why?: string; r2_why?: string; r3_why?: string }[];
+type PairScoreResponse = {
+  man?: { r1?: number; r2?: number; r3?: number; r1_why?: string; r2_why?: string; r3_why?: string };
+  woman?: { r1?: number; r2?: number; r3?: number; r1_why?: string; r2_why?: string; r3_why?: string };
 };
 
-const BATCH = 8;
-const CONCURRENCY = 5; // DeepSeek 限流敏感，别拉满
+function validSide(side: PairScoreResponse["man"]): boolean {
+  if (!side) return false;
+  const rounds = [side.r1, side.r2, side.r3];
+  const reasons = [side.r1_why, side.r2_why, side.r3_why];
+  return rounds.every((r) => typeof r === "number") && reasons.every((t) => typeof t === "string" && t.trim().length > 0);
+}
+
+function toSideScore(side: NonNullable<PairScoreResponse["man"]>): SideScore {
+  return {
+    rounds: [side.r1!, side.r2!, side.r3!].map((n) => Math.max(0, Math.min(100, Math.round(n)))),
+    reasons: [side.r1_why!, side.r2_why!, side.r3_why!].map(String),
+  };
+}
+
 const RETRY_BACKOFF = [2000, 5000, 10000];
 
-export async function scorePool(
+export type PairScore = { man: SideScore; woman: SideScore };
+
+export async function scorePairs(
   pool: PoolData,
+  eligible: PoolData["eligible"],
   promptTemplate: string,
+  concurrency: number,
   onProgress?: (done: number, total: number) => void,
-  onError?: (selfId: string, selfName: string, err: unknown) => void,
-): Promise<Map<string, Map<string, SideScore>>> {
-  const men = new Map(pool.men.map((c) => [c.id, c]));
-  const women = new Map(pool.women.map((c) => [c.id, c]));
-  const tasks: { role: string; self: MaskedCard; candidates: MaskedCard[] }[] = [];
-  const byMan = new Map<string, string[]>(pool.men.map((c) => [c.id, []]));
-  const byWoman = new Map<string, string[]>(pool.women.map((c) => [c.id, []]));
-  for (const e of pool.eligible) {
-    byMan.get(e.man)!.push(e.woman);
-    byWoman.get(e.woman)!.push(e.man);
-  }
-  for (const [mid, wids] of byMan) {
-    if (wids.length) tasks.push({ role: "男生", self: men.get(mid)!, candidates: wids.map((w) => women.get(w)!) });
-  }
-  for (const [wid, mids] of byWoman) {
-    if (mids.length) tasks.push({ role: "女生", self: women.get(wid)!, candidates: mids.map((m) => men.get(m)!) });
-  }
-
-  const total = tasks.length;
+  onError?: (label: string, err: unknown) => void,
+): Promise<Map<string, PairScore>> {
+  const menById = new Map(pool.men.map((c) => [c.id, c]));
+  const womenById = new Map(pool.women.map((c) => [c.id, c]));
+  const out = new Map<string, PairScore>();
+  const total = eligible.length;
   let done = 0;
-  const results = new Map<string, Map<string, SideScore>>();
+  const queue = [...eligible];
 
-  async function runTask(task: (typeof tasks)[number]) {
-    const out = new Map<string, SideScore>();
-    for (let start = 0; start < task.candidates.length; start += BATCH) {
-      const batch = task.candidates.slice(start, start + BATCH);
-      const prompt = promptTemplate
-        .replace("{role_label}", task.role)
-        .replace("{self_id}", task.self.id)
-        .replace("{self_card}", cardText(task.self))
-        .replace("{candidates}", batch.map(cardText).join("\n\n"));
-      const expected = batch.map((c) => c.id);
-      let batchOut: Map<string, SideScore> | null = null;
-      let lastErr: unknown = null;
-      for (let attempt = 0; attempt < 3 && !batchOut; attempt++) {
-        if (attempt > 0) await sleep(RETRY_BACKOFF[attempt - 1] ?? 8000);
-        try {
-          const text = await chat([
-            { role: "system", content: "只输出合法 JSON 对象。不要输出姓名。" },
-            { role: "user", content: prompt },
-          ], { json: true, timeoutMs: 120_000 });
-          const parsed = parseJsonObject(text) as DsScoreResponse;
-          const map = new Map<string, SideScore>();
-          for (const row of parsed.scores ?? []) {
-            const them = typeof row.them === "string" ? row.them.trim() : "";
-            if (!them) continue;
-            map.set(them, {
-              rounds: [row.r1 ?? 0, row.r2 ?? 0, row.r3 ?? 0].map((n) => Math.max(0, Math.min(100, Math.round(n)))),
-              reasons: [row.r1_why ?? "", row.r2_why ?? "", row.r3_why ?? ""].map(String),
-            });
-          }
-          // 校验：候选一个不少、理由不为空，否则重试
-          const complete = expected.every((id) => map.has(id)) && [...map.values()].every((s) => s.reasons.every((r) => r.trim().length > 0));
-          if (complete) batchOut = map;
-          else lastErr = new Error("候选缺漏或理由为空");
-        } catch (err) {
-          lastErr = err;
+  async function runPair(e: PoolData["eligible"][number]) {
+    const m = menById.get(e.man)!;
+    const w = womenById.get(e.woman)!;
+    const label = `${pool.idMap[m.id].name}×${pool.idMap[w.id].name}`;
+    const prompt = promptTemplate
+      .replace("{man_id}", m.id)
+      .replace("{man_card}", cardText(m))
+      .replace("{woman_id}", w.id)
+      .replace("{woman_card}", cardText(w));
+    let lastErr: unknown = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await sleep(RETRY_BACKOFF[attempt - 1] ?? 8000);
+      try {
+        const text = await chat([
+          { role: "system", content: "只输出合法 JSON 对象。不要输出姓名。" },
+          { role: "user", content: prompt },
+        ], { json: true, timeoutMs: 90_000 });
+        const parsed = parseJsonObject(text) as PairScoreResponse;
+        if (validSide(parsed.man) && validSide(parsed.woman)) {
+          out.set(`${e.man}|${e.woman}`, { man: toSideScore(parsed.man!), woman: toSideScore(parsed.woman!) });
+          break;
         }
+        lastErr = new Error("JSON 缺字段或理由为空");
+      } catch (err) {
+        lastErr = err;
       }
-      if (!batchOut) {
-        const name = pool.idMap[task.self.id]?.name ?? task.self.id;
-        onError?.(task.self.id, name, lastErr);
-        throw new Error(`${task.self.id}（${name}）连续失败：${lastErr instanceof Error ? lastErr.message : String(lastErr)}`);
-      }
-      for (const [k, v] of batchOut) out.set(k, v);
     }
-    results.set(task.self.id, out);
+    if (!out.has(`${e.man}|${e.woman}`)) onError?.(label, lastErr);
     done += 1;
     onProgress?.(done, total);
   }
 
-  // 简单并发池
-  const queue = [...tasks];
-  const workers = Array.from({ length: Math.min(CONCURRENCY, tasks.length) }, async () => {
-    while (queue.length) {
-      const task = queue.shift()!;
-      await runTask(task);
-    }
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length) await runPair(queue.shift()!);
   });
   await Promise.all(workers);
-  return results;
+  return out;
 }
 
 // ===== 聚合 =====
@@ -406,26 +444,21 @@ function hungarianMaximize(weights: number[][]): [number, number][] {
   return pairs;
 }
 
-export function aggregateResults(pool: PoolData, scores: Map<string, Map<string, SideScore>>): MatchResult {
+export function aggregateResults(pool: PoolData, eligible: PoolData["eligible"], pairScores: Map<string, PairScore>, failures: string[]): MatchResult {
   const idMap = pool.idMap;
-  const eligible = new Set(pool.eligible.map((e) => `${e.man}|${e.woman}`));
   const pairs = new Map<string, { manSat: number; womanSat: number; harmony: number; manReasons: string[]; womanReasons: string[] }>();
-  const missing: string[] = [];
-  for (const key of eligible) {
-    const [mid, wid] = key.split("|");
-    const m = scores.get(mid)?.get(wid);
-    const w = scores.get(wid)?.get(mid);
-    if (!m || !w) { missing.push(key); continue; }
-    const manSat = mean(m.rounds);
-    const womanSat = mean(w.rounds);
-    pairs.set(key, {
+  for (const e of eligible) {
+    const ps = pairScores.get(`${e.man}|${e.woman}`);
+    if (!ps) continue; // 失败的对跳过，进 scoringFailures
+    const manSat = mean(ps.man.rounds);
+    const womanSat = mean(ps.woman.rounds);
+    pairs.set(`${e.man}|${e.woman}`, {
       manSat, womanSat,
       harmony: Math.round(((manSat + womanSat) / 2) * 100) / 100,
-      manReasons: m.reasons,
-      womanReasons: w.reasons,
+      manReasons: ps.man.reasons,
+      womanReasons: ps.woman.reasons,
     });
   }
-  if (missing.length) throw new Error(`缺 ${missing.length} 对评分，如 ${missing.slice(0, 3).join("、")}`);
 
   const BAN = -10000;
   const menIds = pool.men.map((c) => c.id);
@@ -447,13 +480,10 @@ export function aggregateResults(pool: PoolData, scores: Map<string, Map<string,
   globalPairs.sort((a, b) => b.harmony - a.harmony);
 
   const localOf = (selfId: string, selfIsMan: boolean) => {
-    const cands = pool.eligible
+    const cands = eligible
       .filter((e) => (selfIsMan ? e.man === selfId : e.woman === selfId))
-      .map((e) => {
-        const key = selfIsMan ? `${e.man}|${e.woman}` : `${e.man}|${e.woman}`;
-        return { key, other: selfIsMan ? e.woman : e.man, p: pairs.get(key)! };
-      })
-      .filter((x) => x.p)
+      .map((e) => ({ other: selfIsMan ? e.woman : e.man, p: pairs.get(`${e.man}|${e.woman}`) }))
+      .filter((x): x is { other: string; p: NonNullable<typeof x.p> } => Boolean(x.p))
       .sort((a, b) => (selfIsMan ? b.p.manSat - a.p.manSat : b.p.womanSat - a.p.womanSat) || b.p.harmony - a.p.harmony);
     const top = cands[0];
     if (!top) return null;
@@ -478,6 +508,7 @@ export function aggregateResults(pool: PoolData, scores: Map<string, Map<string,
       异地: pool.skipped.filter((s) => s.reason === "异地").length,
       同班: pool.skipped.filter((s) => s.reason === "同班").length,
     },
+    scoringFailures: failures,
     globalPairs,
     localMen,
     localWomen,
@@ -508,25 +539,37 @@ export async function runDeepseekMatch(): Promise<void> {
   job.errors = [];
   try {
     const prompt = (await getSetting(DS_PROMPT_KEY)) ?? DEFAULT_DS_PROMPT;
+    const tunables = await getTunables();
     await ensureTable();
     const db = getDb();
     const rows = await db.select().from(profiles);
-    const pool = preparePoolData(rows);
-    const scores = await scorePool(
+    const { responsesV3 } = await import("../../db/schema");
+    const quizRows = await db.select().from(responsesV3);
+    const bySession = new Map<string, string>();
+    for (const r of quizRows) bySession.set(r.sessionId, r.typeCode);
+
+    const pool = preparePoolData(rows, (sid) => bySession.get(sid) ?? null);
+    const { eligible, hardDropped } = prefilterEligible(pool, tunables.topK);
+    if (hardDropped > 0) job.errors.push(`规则硬雷区预筛掉 ${hardDropped} 对（不满足身高/年龄/异地要求）`);
+    await logCron("dsMatch.prefilter", { before: pool.eligible.length, after: eligible.length, topK: tunables.topK });
+
+    const pairScores = await scorePairs(
       pool,
+      eligible,
       prompt,
+      tunables.concurrency,
       (done, total) => {
         job.done = done;
         job.total = total;
       },
-      (selfId, selfName, err) => {
-        const msg = `${selfId}（${selfName}）：${err instanceof Error ? err.message : String(err)}`;
-        if (job.errors.length < 20) job.errors.push(msg);
+      (label, err) => {
+        const msg = `${label}：${err instanceof Error ? err.message : String(err)}`;
+        if (job.errors.length < 30) job.errors.push(msg);
       },
     );
-    const result = aggregateResults(pool, scores);
+    const result = aggregateResults(pool, eligible, pairScores, job.errors.slice(hardDropped > 0 ? 1 : 0));
 
-    // AI 配对写回 matches 表（pending_send），接上空投/短信流程：只替换本周待发送的旧记录
+    // AI 配对写回 matches 表（pending_send），接上空投/短信流程
     const weekKey = isoWeekKey();
     await db.delete(matches).where(and(eq(matches.weekKey, weekKey), eq(matches.state, "pending_send")));
     for (const p of result.globalPairs) {
@@ -543,7 +586,7 @@ export async function runDeepseekMatch(): Promise<void> {
     }
 
     await setSetting(DS_RESULT_KEY, JSON.stringify(result));
-    await logCron("dsMatch.done", { eligible: result.eligibleCount, pairs: result.globalPairs.length, sum: result.globalSum });
+    await logCron("dsMatch.done", { eligible: result.eligibleCount, pairs: result.globalPairs.length, sum: result.globalSum, failures: result.scoringFailures.length });
     job.state = "done";
   } catch (err) {
     job.state = "error";

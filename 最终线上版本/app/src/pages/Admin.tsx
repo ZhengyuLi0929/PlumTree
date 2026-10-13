@@ -174,6 +174,7 @@ type DsResult = {
   globalSum: number;
   droppedDuplicates: { name: string; keptWechat: string; droppedWechat: string }[];
   skippedCount: { 异地: number; 同班: number };
+  scoringFailures: string[];
   globalPairs: DsPair[];
   localMen: { person: string; best: string | null; harmony: number; manSat: number; womanSat: number; manReasons: string[]; womanReasons: string[] }[];
   localWomen: { person: string; best: string | null; harmony: number; manSat: number; womanSat: number; manReasons: string[]; womanReasons: string[] }[];
@@ -213,6 +214,8 @@ function PairRow({ p, rank }: { p: DsPair; rank?: number }) {
 
 function DsMatchPanel() {
   const promptQ = trpc.responses.dsGetPrompt.useQuery();
+  const tunablesQ = trpc.responses.dsGetTunables.useQuery();
+  const setTunables = trpc.responses.dsSetTunables.useMutation();
   const setPrompt = trpc.responses.dsSetPrompt.useMutation();
   const run = trpc.responses.dsRunMatch.useMutation();
   const status = trpc.responses.dsMatchStatus.useQuery(undefined, { refetchInterval: 4000 });
@@ -220,13 +223,19 @@ function DsMatchPanel() {
   const result = trpc.responses.dsMatchResult.useQuery(undefined, { refetchInterval: running ? 8000 : false });
   const utils = trpc.useUtils();
   const [text, setText] = useState("");
+  const [topK, setTopK] = useState(8);
+  const [conc, setConc] = useState(5);
   const [saved, setSaved] = useState(false);
+  const [tunSaved, setTunSaved] = useState(false);
   const [err, setErr] = useState("");
 
   useEffect(() => {
     if (promptQ.data && !text) setText(promptQ.data.prompt);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [promptQ.data]);
+  useEffect(() => {
+    if (tunablesQ.data) { setTopK(tunablesQ.data.topK); setConc(tunablesQ.data.concurrency); }
+  }, [tunablesQ.data]);
 
   const data = result.data as DsResult | null;
   const start = () => {
@@ -239,9 +248,54 @@ function DsMatchPanel() {
 
   return (
     <>
+      <Card title="匹配机制（v2 · 低成本）">
+        <ol className="text-xs leading-relaxed pl-4 space-y-1" style={{ color: "#5a5347", listStyle: "decimal" }}>
+          <li>读报名档案，同一人去重（留最新报名），过滤异地与同班。</li>
+          <li>姓名脱敏成代号（M00/W00），AI 看不到真实姓名。</li>
+          <li><b>规则预筛（零成本）</b>：用规则匹配（官配加分、兴趣互中、硬雷区）给每个人只留 <b>topK</b> 个候选，砍掉其余组合——这是省钱的关键。</li>
+          <li><b>按对打分</b>：每个候选对一次调用，AI 同时扮演男方和女方各打三轮分（初见/一个月/长期）并写理由。JSON 小、几乎不失败。</li>
+          <li>和谐分 = 双方均分的平均；匈牙利算法求全局最优（每人最多一对，总分最大）。</li>
+          <li>失败的对不会拖垮全局，列在结果末尾「打分失败清单」。</li>
+        </ol>
+        <p className="text-xs mt-2" style={{ color: "#a3988a" }}>
+          成本量级：topK=8 时约 200 次调用/轮，deepseek-flash 约几毛钱；topK 越大越贵（线性）。
+        </p>
+        <div className="flex items-end gap-3 mt-3 flex-wrap">
+          <label className="text-xs" style={{ color: "#7a7060" }}>
+            topK 候选/人
+            <input type="number" min={1} max={30} value={topK} onChange={(e) => setTopK(parseInt(e.target.value || "8", 10))}
+              className="block mt-1 w-24 px-3 py-2 rounded-xl text-sm outline-none" style={{ background: "#F3ECD2", color: "#121212" }} />
+          </label>
+          <label className="text-xs" style={{ color: "#7a7060" }}>
+            并发数
+            <input type="number" min={1} max={10} value={conc} onChange={(e) => setConc(parseInt(e.target.value || "5", 10))}
+              className="block mt-1 w-24 px-3 py-2 rounded-xl text-sm outline-none" style={{ background: "#F3ECD2", color: "#121212" }} />
+          </label>
+          <button
+            onClick={() => {
+              setTunSaved(false);
+              setTunables.mutate({ topK, concurrency: conc }, { onSuccess: () => setTunSaved(true), onError: (e) => setErr(trpcErrorMessage(e)) });
+            }}
+            disabled={setTunables.isPending}
+            className="text-sm px-5 py-2.5 rounded-full disabled:opacity-50"
+            style={{ background: "#F3ECD2", color: "#5a5347" }}
+          >
+            {setTunables.isPending ? "保存中…" : tunSaved ? "✓ 已保存" : "保存参数"}
+          </button>
+          <button
+            onClick={start}
+            disabled={running || run.isPending}
+            className="font-display text-sm px-6 py-2.5 rounded-full disabled:opacity-50"
+            style={{ background: "#121212", color: "#F3ECD2" }}
+          >
+            {running ? `匹配中… ${status.data?.done ?? 0}/${status.data?.total ?? "?"}` : "开始匹配"}
+          </button>
+        </div>
+      </Card>
+
       <Card title="匹配提示词（改完记得保存）">
         <p className="text-xs mb-2" style={{ color: "#7a7060" }}>
-          占位符：{"{role_label} / {self_id} / {self_card} / {candidates}"} 会被自动替换。{promptQ.data?.isDefault ? "当前是默认提示词。" : "当前是自定义提示词。"}
+          占位符：{"{man_id} / {man_card} / {woman_id} / {woman_card}"} 会被自动替换。{promptQ.data?.isDefault ? "当前是默认提示词。" : "当前是自定义提示词。"}
         </p>
         <textarea
           className="w-full rounded-xl p-3 text-xs leading-relaxed outline-none"
@@ -267,14 +321,6 @@ function DsMatchPanel() {
             style={{ background: "#F3ECD2", color: "#7a7060" }}
           >
             还原成线上保存的版本
-          </button>
-          <button
-            onClick={start}
-            disabled={running || run.isPending}
-            className="font-display text-sm px-6 py-2.5 rounded-full disabled:opacity-50"
-            style={{ background: "#121212", color: "#F3ECD2" }}
-          >
-            {running ? `匹配中… ${status.data?.done ?? 0}/${status.data?.total ?? "?"}` : "开始匹配"}
           </button>
         </div>
         {err && <p className="text-sm mt-2" style={{ color: "#9a3412" }}>{err}</p>}
@@ -344,6 +390,13 @@ function DsMatchPanel() {
             <Card title="本轮未配上">
               <p className="text-sm mb-1" style={{ color: "#7a7060" }}>男生：{data.unmatchedMen.join("、") || "无"}</p>
               <p className="text-sm" style={{ color: "#7a7060" }}>女生：{data.unmatchedWomen.join("、") || "无"}</p>
+            </Card>
+          )}
+          {data.scoringFailures.length > 0 && (
+            <Card title={`打分失败清单 · ${data.scoringFailures.length}`}>
+              <ul className="text-xs space-y-1" style={{ color: "#9a3412" }}>
+                {data.scoringFailures.map((f, i) => <li key={i}>· {f}</li>)}
+              </ul>
             </Card>
           )}
         </>

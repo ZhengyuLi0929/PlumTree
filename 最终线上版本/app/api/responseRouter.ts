@@ -1223,6 +1223,22 @@ export const responseRouter = createRouter({
       return { ok: true };
     }),
 
+  dsGetTunables: publicQuery.query(async ({ ctx }) => {
+    await requireAdmin(ctx.req);
+    const { getTunables } = await import("./lib/dsMatch");
+    return getTunables();
+  }),
+
+  dsSetTunables: publicQuery
+    .input(z.object({ topK: z.number().int().min(1).max(30), concurrency: z.number().int().min(1).max(10) }))
+    .mutation(async ({ input, ctx }) => {
+      await requireAdmin(ctx.req);
+      const { setSetting, DS_TUNABLES_KEY } = await import("./lib/dsMatch");
+      await setSetting(DS_TUNABLES_KEY, JSON.stringify(input));
+      await logAudit("admin", "dsMatch.setTunables", undefined, input);
+      return { ok: true };
+    }),
+
   dsRunMatch: publicQuery.mutation(async ({ ctx }) => {
     await requireAdmin(ctx.req);
     const { runDeepseekMatch, matchJobStatus } = await import("./lib/dsMatch");
