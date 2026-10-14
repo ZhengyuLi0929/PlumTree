@@ -32,7 +32,7 @@ async function main() {
   if (!hasDatabase()) { console.error("需要 DATABASE_URL"); process.exit(1); }
 
   type Res = { ok: boolean; code: string; message: string; data: any; headers?: Headers };
-  const QUERIES = new Set(["memberMe", "roster", "adminMe", "visitStats", "stats", "statsV2", "statsV3", "poolList", "airdropQueue", "merchantsList", "redemptionsList", "export", "exportOps", "ping", "memberMatchInfo", "memberBotHistory", "dsGetPrompt", "dsGetTunables", "dsMatchStatus", "dsMatchResult", "airdropPreview", "userDetail"]);
+  const QUERIES = new Set(["memberMe", "roster", "adminMe", "visitStats", "stats", "statsV2", "statsV3", "poolList", "airdropQueue", "merchantsList", "redemptionsList", "export", "exportOps", "ping", "memberMatchInfo", "memberBotHistory", "dsGetPrompt", "dsGetTunables", "dsMatchStatus", "dsMatchResult", "airdropPreview", "userDetail", "memberDateOptions", "memberInvites"]);
   async function call(proc: string, input?: unknown, cookie?: string, auth?: string): Promise<Res> {
     const isQuery = QUERIES.has(proc);
     const url = `http://test.local/api/trpc/responses.${proc}${isQuery && input !== undefined ? `?input=${encodeURIComponent(JSON.stringify({ json: input }))}` : ""}`;
@@ -357,6 +357,38 @@ async function main() {
     assert("I16 差评回访 → 也收（出池由调度侧查）", fbBad.ok);
     delete process.env.BOT_FORCE_PHASE;
 
+    // ============ J. 约会邀请与偏好强制 ============
+    console.log("J. 约会邀请与偏好强制");
+    // J1 开开关但三类偏好全空 → 拒
+    const dpBad = await call("memberSaveDatePrefs", { participate: true, locations: [], activities: [], times: [] }, cookieA);
+    assert("J1 参加开关但偏好空 → 拒", !dpBad.ok && dpBad.message.includes("填齐"));
+    const dpGood = await call("memberSaveDatePrefs", { participate: true, locations: ["五棵松"], activities: ["一起吃顿饭"], times: ["周六晚上"] }, cookieA);
+    assert("J2 偏好填齐 → ok", dpGood.ok);
+
+    // 邀请流程（新造一对 confirmed）
+    const [pI1] = await db.select().from(schema.profiles).where(eq(schema.profiles.sessionId, "zzt-alpha-sess"));
+    const [pI2] = await db.select().from(schema.profiles).where(eq(schema.profiles.sessionId, "zzt-dup-2"));
+    const mi = await db.insert(schema.matches).values({ weekKey: week, manProfileId: pI1.id, womanProfileId: pI2.id, state: "confirmed", reason: "邀请测试" });
+    const miid = Number(mi[0].insertId);
+    const optsR = await call("memberDateOptions", undefined, cookieA);
+    assert("J3 约会选项返回商家与时间槽", optsR.ok && optsR.data.ok === true && optsR.data.merchants.length > 0 && optsR.data.time.slots.length > 0);
+    const merchTop = optsR.data.merchants[0];
+    const slot = optsR.data.time.slots[0];
+    const inv = await call("memberSendInvite", { merchantId: merchTop.id, timeSlot: slot }, cookieA);
+    assert("J4 发出邀请 → ok", inv.ok && inv.ok === undefined ? true : inv.ok && inv.data.ok === true);
+    const invBad = await call("memberAnswerInvite", { inviteId: 1, accept: true }, cookieA);
+    // 自己发的邀请不能自己接：先拿邀请 id
+    const invList = await call("memberInvites", undefined, cookieDup);
+    const incoming = invList.data.invites.find((i: any) => !i.fromMe && i.status === "pending");
+    assert("J5 对方看到 pending 邀请", !!incoming);
+    const selfAns = await call("memberAnswerInvite", { inviteId: incoming.id, accept: true }, cookieA);
+    assert("J6 自己接自己的邀请 → 拒", selfAns.ok && selfAns.data.ok === false);
+    const ans = await call("memberAnswerInvite", { inviteId: incoming.id, accept: true }, cookieDup);
+    assert("J7 对方接受 → 锁定", ans.ok && ans.data.accepted === true);
+    const after = await call("memberDateOptions", undefined, cookieA);
+    assert("J8 定案写入 matches（merchant+timeSlot）", after.data.locked?.merchantId === merchTop.id && after.data.locked?.timeSlot === slot);
+    const again = await call("memberSendInvite", { merchantId: merchTop.id, timeSlot: slot }, cookieA);
+    assert("J9 定案后不能再发邀请", again.ok && again.data.ok === false);
     // ============ 收尾 ============
     console.log("\n============================");
     console.log(`${passed} 通过, ${failed} 失败`);

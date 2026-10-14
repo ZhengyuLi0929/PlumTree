@@ -730,6 +730,12 @@ export const responseRouter = createRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const profile = await requireMemberProfile(ctx.req);
+      // 打开参加开关就必须填齐地点/活动/时间
+      if (input.participate) {
+        if (!input.locations.length || !input.activities.length || !input.times.length) {
+          fail("BAD_REQUEST", "参加本周匹配需要填齐：倾向地点、倾向活动、可约会时间");
+        }
+      }
       // 倾向按周生效：存当前周键，下周自动失效回到「不参加」
       await getDb()
         .update(profiles)
@@ -1011,6 +1017,35 @@ export const responseRouter = createRouter({
         rightSession: input.rightSession,
         note: input.note || null,
       });
+      // 同步进 matches 表（/me 月老 tab、传话、约会邀请都读 matches）：
+      // 先删掉这两人本周在 matches 里的 pending 记录，再插手动配对
+      const profRows = await db.select().from(profiles);
+      const bySession = new Map(profRows.map((p) => [p.sessionId, p]));
+      const left = bySession.get(input.leftSession);
+      const right = bySession.get(input.rightSession);
+      if (left && right) {
+        const man = left.gender === "男" ? left : right.gender === "男" ? right : null;
+        const woman = left.gender === "女" ? left : right.gender === "女" ? right : null;
+        if (man && woman) {
+          await db.delete(matches).where(
+            and(
+              eq(matches.weekKey, weekKey),
+              eq(matches.state, "pending_send"),
+              or(
+                eq(matches.manProfileId, man.id), eq(matches.womanProfileId, man.id),
+                eq(matches.manProfileId, woman.id), eq(matches.womanProfileId, woman.id),
+              ),
+            ),
+          );
+          await db.insert(matches).values({
+            weekKey,
+            manProfileId: man.id,
+            womanProfileId: woman.id,
+            reason: `手动匹配${input.note ? ` · ${input.note}` : ""}`,
+            state: "pending_send",
+          });
+        }
+      }
       return { ok: true, weekKey };
     }),
 
@@ -1426,6 +1461,37 @@ export const responseRouter = createRouter({
       const profile = await requireMemberProfile(ctx.req);
       const { webFeedback } = await import("./lib/webMember");
       return webFeedback(profile.id, input);
+    }),
+
+  /** 约会安排：商家推荐（按双方偏好适配度）+ 时间交集 */
+  memberDateOptions: publicQuery.query(async ({ ctx }) => {
+    const profile = await requireMemberProfile(ctx.req);
+    const { dateOptions } = await import("./lib/invites");
+    return dateOptions(profile.id);
+  }),
+
+  /** 发送约会邀请（商户+时间，双方都确认见面后） */
+  memberSendInvite: publicQuery
+    .input(z.object({ merchantId: z.number().int().positive(), timeSlot: z.string().trim().min(1).max(32) }))
+    .mutation(async ({ input, ctx }) => {
+      const profile = await requireMemberProfile(ctx.req);
+      const { sendInvite } = await import("./lib/invites");
+      return sendInvite(profile.id, input.merchantId, input.timeSlot);
+    }),
+
+  memberInvites: publicQuery.query(async ({ ctx }) => {
+    const profile = await requireMemberProfile(ctx.req);
+    const { listInvites } = await import("./lib/invites");
+    return listInvites(profile.id);
+  }),
+
+  /** 应答邀请：接受=锁定本周约会（其余 pending 作废）；拒绝=对方可重提 */
+  memberAnswerInvite: publicQuery
+    .input(z.object({ inviteId: z.number().int().positive(), accept: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      const profile = await requireMemberProfile(ctx.req);
+      const { answerInvite } = await import("./lib/invites");
+      return answerInvite(profile.id, input.inviteId, input.accept);
     }),
 
   exportOps: publicQuery.query(async ({ ctx }) => {

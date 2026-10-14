@@ -177,6 +177,9 @@ export const matches = mysqlTable("matches", {
   /** 月老推荐语（AI 生成，给男方/女方各一段） */
   blessingMan: text("blessing_man"),
   blessingWoman: text("blessing_woman"),
+  /** 约会定案：商户与时间（首个被接受的邀请写入） */
+  dateMerchantId: bigint("date_merchant_id", { mode: "number" }),
+  dateTimeSlot: varchar("date_time_slot", { length: 32 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -208,6 +211,10 @@ export const merchants = mysqlTable("merchants", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 64 }).notNull(),
   address: varchar("address", { length: 255 }),
+  /** 商圈（与约会倾向的地点选项一致） */
+  area: varchar("area", { length: 32 }),
+  /** 类别：一起吃饭 / 下午茶 / 手工 */
+  category: varchar("category", { length: 32 }),
   /** 回扣单价（分） */
   rebateCents: int("rebate_cents").notNull().default(0),
   /** active / paused */
@@ -266,6 +273,18 @@ export const photos = mysqlTable("photos", {
 /** 会员初始/自改密码（临时登录方式；手机号唯一键）。回滚短信登录时此表停用 */export const memberCredentials = mysqlTable("member_credentials", {
   phone: varchar("phone", { length: 20 }).primaryKey(),
   passwordHash: varchar("password_hash", { length: 64 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const dateInvites = mysqlTable("date_invites", {
+  id: serial("id").primaryKey(),
+  matchId: bigint("match_id", { mode: "number" }).notNull(),
+  fromProfileId: bigint("from_profile_id", { mode: "number" }).notNull(),
+  merchantId: bigint("merchant_id", { mode: "number" }).notNull(),
+  timeSlot: varchar("time_slot", { length: 32 }).notNull(),
+  /** pending / accepted / rejected / superseded */
+  status: varchar("status", { length: 16 }).notNull().default("pending"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

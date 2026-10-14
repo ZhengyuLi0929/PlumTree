@@ -193,6 +193,8 @@ const DDL = [
     id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name varchar(64) NOT NULL,
     address varchar(255),
+    area varchar(32),
+    category varchar(32),
     rebate_cents int NOT NULL DEFAULT 0,
     status varchar(16) NOT NULL DEFAULT 'active',
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -254,6 +256,17 @@ const DDL = [
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_webmsg_from (from_profile_id)
   )`,
+  `CREATE TABLE IF NOT EXISTS date_invites (
+    id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    match_id bigint NOT NULL,
+    from_profile_id bigint NOT NULL,
+    merchant_id bigint NOT NULL,
+    time_slot varchar(32) NOT NULL,
+    status varchar(16) NOT NULL DEFAULT 'pending',
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_invites_match (match_id)
+  )`,
 ];
 
 export async function ensureTable() {
@@ -278,6 +291,10 @@ export async function ensureTable() {
       `ALTER TABLE profiles ADD COLUMN date_prefs text`,
       `ALTER TABLE matches ADD COLUMN blessing_man text`,
       `ALTER TABLE matches ADD COLUMN blessing_woman text`,
+      `ALTER TABLE matches ADD COLUMN date_merchant_id bigint`,
+      `ALTER TABLE matches ADD COLUMN date_time_slot varchar(32)`,
+      `ALTER TABLE merchants ADD COLUMN area varchar(32)`,
+      `ALTER TABLE merchants ADD COLUMN category varchar(32)`,
       `ALTER TABLE matches ADD COLUMN man_reply varchar(8)`,
       `ALTER TABLE matches ADD COLUMN woman_reply varchar(8)`,
       `ALTER TABLE matches ADD COLUMN man_note_days text`,
@@ -290,6 +307,27 @@ export async function ensureTable() {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (!/Duplicate column|1060/i.test(msg)) throw err;
+      }
+    }
+    // 假商家库：空表才种（真实商家库到位后删除这些示例行即可）
+    const [mc] = await p.query(`SELECT COUNT(*) AS n FROM merchants`);
+    const count = Number((mc as unknown as { n: number }[])[0]?.n ?? 0);
+    if (count === 0) {
+      const areas = ["国贸/CBD", "三里屯/亮马桥", "五道口/中关村", "什刹海/白塔寺/五道营", "五棵松"];
+      const cats: [string, string][] = [
+        ["一起吃饭", "好好吃饭小馆"],
+        ["下午茶", "慢慢来茶室"],
+        ["手工", "灵感手作工坊"],
+      ];
+      for (const area of areas) {
+        for (const [cat, brand] of cats) {
+          await p.query(`INSERT INTO merchants (name, address, area, category, rebate_cents, status) VALUES (?, ?, ?, ?, 0, 'active')`, [
+            `${area.split("/")[0]}·${brand}（示例）`,
+            `${area}（示例地址）`,
+            area,
+            cat,
+          ]);
+        }
       }
     }
   })();

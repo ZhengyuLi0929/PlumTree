@@ -777,6 +777,9 @@ function MatchmakerLive() {
         )}
       </div>
 
+      {/* 约会安排（周五双方都确认后出现） */}
+      {data?.match && <DatePlanSection matchState={data.match.state} />}
+
       {/* 小纸条 */}
       <div className="rounded-3xl p-6 mb-4 animate-pop" style={{ background: "#FFFDF6", boxShadow: "0 6px 24px rgba(18,18,18,0.06)" }}>
         <h2 className="font-display text-lg mb-1" style={{ color: "#121212" }}>递小纸条</h2>
@@ -913,6 +916,170 @@ function MatchmakerLive() {
       </div>
       <Toast msg={toast} />
     </>
+  );
+}
+
+/* ---------- 约会安排（周五确认后：推荐商家 + 时间交集 + 邀请/反邀请） ---------- */
+type MerchantOpt = { id: number; name: string; address: string | null; area: string | null; category: string | null; fit: number };
+type DateOpts =
+  | { ok: false; error: string }
+  | { ok: true; matchId: number; locked: { merchantId: number; timeSlot: string } | null; merchants: MerchantOpt[]; time: { slots: string[]; noOverlap: boolean } };
+type InviteRow = { id: number; fromMe: boolean; merchant: string; timeSlot: string; status: string };
+
+function DatePlanSection({ matchState }: { matchState: string }) {
+  const utils = trpc.useUtils();
+  const optsQ = trpc.responses.memberDateOptions.useQuery(undefined, { refetchInterval: 15000 });
+  const invitesQ = trpc.responses.memberInvites.useQuery(undefined, { refetchInterval: 15000 });
+  const send = trpc.responses.memberSendInvite.useMutation();
+  const answer = trpc.responses.memberAnswerInvite.useMutation();
+  const [merchantId, setMerchantId] = useState<number | null>(null);
+  const [timeSlot, setTimeSlot] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const [toast, setToast] = useState("");
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flash = (m: string) => {
+    setToast(m);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 3000);
+  };
+
+  if (!["confirmed", "dating"].includes(matchState)) return null;
+  const opts = optsQ.data as DateOpts | undefined;
+  const invites = (invitesQ.data?.invites ?? []) as InviteRow[];
+  const lockedMerchant = opts?.ok && opts.locked ? (opts.merchants.find((m) => m.id === opts.locked!.merchantId)?.name ?? "定好的商家") : null;
+  const incoming = invites.find((i) => !i.fromMe && i.status === "pending");
+  const outgoing = invites.find((i) => i.fromMe && i.status === "pending");
+
+  const doSend = () => {
+    if (!merchantId || !timeSlot) return flash("先选好商家和时间哦");
+    if (!confirmed) return flash("记得勾选：已与商家确认时间");
+    send.mutate({ merchantId, timeSlot }, {
+      onSuccess: (r) => {
+        if (r.ok) {
+          flash("邀请飞出去了！TA 接受就成行～");
+          setMerchantId(null); setTimeSlot(""); setConfirmed(false);
+          void utils.responses.memberInvites.invalidate();
+        } else flash(r.error ?? "发送失败");
+      },
+      onError: (e) => flash(trpcErrorMessage(e, "发送失败")),
+    });
+  };
+
+  const doAnswer = (inviteId: number, accept: boolean) => {
+    answer.mutate({ inviteId, accept }, {
+      onSuccess: (r) => {
+        if (r.ok) {
+          flash(accept ? "好耶！这周就这么定了 🎉" : "已婉拒，TA 会收到通知再来一版");
+          void utils.responses.memberInvites.invalidate();
+          void utils.responses.memberDateOptions.invalidate();
+          void utils.responses.memberMatchInfo.invalidate();
+        } else flash(r.error ?? "操作失败");
+      },
+      onError: (e) => flash(trpcErrorMessage(e, "操作失败")),
+    });
+  };
+
+  return (
+    <div className="rounded-3xl p-6 mb-4 animate-pop" style={{ background: "#FFFDF6", boxShadow: "0 6px 24px rgba(18,18,18,0.06)" }}>
+      <h2 className="font-display text-lg mb-1" style={{ color: "#121212" }}>约会安排</h2>
+      <p className="text-xs mb-3" style={{ color: "#a3988a" }}>你们都点头啦！现在就差把时间和地点定下来。</p>
+
+      {/* 已定案 */}
+      {opts?.ok && opts.locked && (
+        <div className="rounded-2xl p-4" style={{ background: "linear-gradient(135deg, #F97028, #F489A3)" }}>
+          <p className="font-display text-lg mb-1" style={{ color: "#FFFDF6" }}>定了！🎉</p>
+          <p className="text-sm" style={{ color: "rgba(255,253,246,0.95)" }}>
+            {opts.locked.timeSlot} · {lockedMerchant}
+          </p>
+          <p className="text-xs mt-1" style={{ color: "rgba(255,253,246,0.8)" }}>记得提前一点点到，好好玩～</p>
+        </div>
+      )}
+
+      {/* 收到邀请 */}
+      {!opts?.ok || opts.locked ? null : incoming ? (
+        <div className="rounded-2xl p-4 mb-3" style={{ background: "#EAF5EE" }}>
+          <p className="font-display text-base mb-1" style={{ color: "#121212" }}>叮咚！TA 发来一个约会邀请 ✉️</p>
+          <p className="text-sm mb-3" style={{ color: "#3d3830" }}>{incoming.timeSlot} · {incoming.merchant}</p>
+          <div className="flex gap-2">
+            <button onClick={() => doAnswer(incoming.id, true)} disabled={answer.isPending}
+              className="flex-1 font-display text-sm py-3 rounded-full disabled:opacity-50" style={{ background: "#3a7d5c", color: "#FFFDF6" }}>
+              接受！就这了
+            </button>
+            <button onClick={() => doAnswer(incoming.id, false)} disabled={answer.isPending}
+              className="flex-1 font-display text-sm py-3 rounded-full disabled:opacity-50" style={{ background: "#FFFDF6", color: "#7a7060", border: "2px solid #E8DCC0" }}>
+              拒绝，我来提一版
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* 等待对方 */}
+      {opts?.ok && !opts.locked && outgoing && (
+        <div className="rounded-2xl p-4 mb-3" style={{ background: "#FBF3E3" }}>
+          <p className="text-sm" style={{ color: "#3d3830" }}>你的邀请（{outgoing.timeSlot} · {outgoing.merchant}）正在等 TA 回复～</p>
+        </div>
+      )}
+
+      {/* 发起邀请表单 */}
+      {opts?.ok && !opts.locked && (
+        <>
+          {opts.time.noOverlap && (
+            <p className="text-xs mb-3 rounded-xl p-2" style={{ background: "#FDEAE0", color: "#9a3412" }}>
+              你俩填的时间没交集，先全量展示了——递张小纸条商量一下呗。
+            </p>
+          )}
+          <p className="text-xs font-semibold mb-1.5" style={{ color: "#3d3830" }}>选个地方（按你俩的口味排的）</p>
+          <div className="flex flex-col gap-1.5 mb-3">
+            {opts.merchants.slice(0, 6).map((m) => (
+              <button key={m.id} type="button" onClick={() => setMerchantId(m.id)}
+                className="text-left px-4 py-2.5 rounded-xl text-sm transition-all"
+                style={{
+                  background: merchantId === m.id ? "#F97028" : "#F3ECD2",
+                  color: merchantId === m.id ? "#FFFDF6" : "#121212",
+                }}>
+                {m.name}
+                {m.fit >= 6 ? <span className="text-xs ml-2" style={{ opacity: 0.85 }}>· 超合你俩</span> : m.fit >= 3 ? <span className="text-xs ml-2" style={{ opacity: 0.8 }}>· 挺合适</span> : null}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs font-semibold mb-1.5" style={{ color: "#3d3830" }}>选个时间（你俩的空档交集）</p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {opts.time.slots.map((t) => (
+              <button key={t} type="button" onClick={() => setTimeSlot(t)}
+                className="text-xs px-4 py-2.5 rounded-full font-semibold transition-all"
+                style={{
+                  background: timeSlot === t ? "#F97028" : "#FFFDF6",
+                  color: timeSlot === t ? "#FFFDF6" : "#5a5347",
+                  border: "2px solid",
+                  borderColor: timeSlot === t ? "#F97028" : "#E8DCC0",
+                }}>
+                {t}
+              </button>
+            ))}
+          </div>
+          <label className="flex items-start gap-2.5 cursor-pointer select-none mb-3">
+            <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)}
+              className="mt-0.5 w-4 h-4 shrink-0 accent-[#F97028]" />
+            <span className="text-xs leading-relaxed" style={{ color: "#5a5347" }}>
+              我已经和商家打电话确认过这个时间有位子，并且那天我会准时到！
+            </span>
+          </label>
+          <button
+            type="button"
+            onClick={doSend}
+            disabled={send.isPending}
+            className="w-full font-display text-base py-3.5 rounded-full disabled:opacity-50 transition-all hover:scale-[1.02]"
+            style={{ background: "#F97028", color: "#FFFDF6", boxShadow: "0 8px 24px rgba(249,112,40,0.35)" }}
+          >
+            {send.isPending ? "发送中…" : "发送约会邀请 →"}
+          </button>
+        </>
+      )}
+      {optsQ.data && !(optsQ.data as DateOpts).ok && (
+        <p className="text-sm" style={{ color: "#a3988a" }}>{(optsQ.data as { error?: string }).error}</p>
+      )}
+      <Toast msg={toast} />
+    </div>
   );
 }
 
@@ -1163,7 +1330,7 @@ function DatePrefsCard({ raw, participate: initialParticipate, preview }: { raw:
         <div>
           <p className="text-sm font-semibold" style={{ color: "#121212" }}>参加本周约会匹配</p>
           <p className="text-xs mt-0.5" style={{ color: "#7a7060" }}>
-            {participate ? "已参加：本周三会给你排一位对象" : "默认不参加，打开开关才会被排进本周匹配（下周一自动关闭）"}
+            {participate ? "已参加：本周三会给你排一位对象" : "默认不参加；打开需要填齐地点、活动和时间（下周一自动关闭）"}
           </p>
         </div>
         <button
