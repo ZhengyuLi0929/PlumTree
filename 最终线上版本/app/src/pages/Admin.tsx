@@ -168,7 +168,8 @@ function AdminDesk({ onLogout }: { onLogout: () => void }) {
 }
 
 /* ================= DeepSeek 匹配 ================= */
-type DsPair = { man: string; woman: string; manSat: number; womanSat: number; harmony: number; manReasons: string[]; womanReasons: string[] };
+type DsPair = { man: string; woman: string; manSat: number; womanSat: number; harmony: number; manReasons: string[]; womanReasons: string[]; matchId?: number };
+type DragSrc = { matchId: number; side: "man" | "woman" } | null;
 type DsResult = {
   ranAt: string;
   eligibleCount: number;
@@ -183,15 +184,43 @@ type DsResult = {
   unmatchedWomen: string[];
 };
 
-function PairRow({ p, rank }: { p: DsPair; rank?: number }) {
+function PairRow({ p, rank, dragSrc, onDragStart, onDrop }: {
+  p: DsPair;
+  rank?: number;
+  dragSrc: DragSrc;
+  onDragStart: (src: DragSrc) => void;
+  onDrop: (target: { matchId: number; side: "man" | "woman" }) => void;
+}) {
   const [open, setOpen] = useState(false);
   const hot = p.harmony >= 75;
+  const chip = (side: "man" | "woman", name: string) => {
+    const draggable = p.matchId != null;
+    const isSrc = dragSrc?.matchId === p.matchId && dragSrc?.side === side;
+    return (
+      <span
+        draggable={draggable}
+        onDragStart={draggable ? () => onDragStart({ matchId: p.matchId!, side }) : undefined}
+        onDragOver={draggable ? (e) => e.preventDefault() : undefined}
+        onDrop={draggable ? (e) => { e.preventDefault(); onDrop({ matchId: p.matchId!, side }); } : undefined}
+        className="inline-block px-2 py-0.5 rounded-lg"
+        title={draggable ? "拖到另一对的人身上即可交换" : undefined}
+        style={{
+          cursor: draggable ? "grab" : "default",
+          background: isSrc ? "#F97028" : "transparent",
+          color: isSrc ? "#FFFDF6" : "inherit",
+          outline: draggable ? "1px dashed #E8DCC0" : "none",
+        }}
+      >
+        {name}
+      </span>
+    );
+  };
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: hot ? "#FFF1E8" : "#FBF3E3" }}>
       <button type="button" onClick={() => setOpen(!open)} className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left">
         <p className="text-sm font-semibold" style={{ color: "#121212" }}>
           {rank ? <span style={{ color: "#F97028" }}>{rank}. </span> : null}
-          {p.man} × {p.woman}
+          {chip("man", p.man)} <span style={{ color: "#a3988a" }}>×</span> {chip("woman", p.woman)}
         </p>
         <p className="text-xs shrink-0" style={{ color: "#a3988a" }}>
           男 <b style={{ color: "#F97028" }}>{p.manSat}</b> · 女 <b style={{ color: "#F97028" }}>{p.womanSat}</b> · 和谐 <b style={{ color: hot ? "#F97028" : "#3d3830" }}>{p.harmony}</b> {open ? "▲" : "▼"}
@@ -229,6 +258,8 @@ function DsMatchPanel() {
   const [saved, setSaved] = useState(false);
   const [tunSaved, setTunSaved] = useState(false);
   const [err, setErr] = useState("");
+  const [dragSrc, setDragSrc] = useState<DragSrc>(null);
+  const swap = trpc.responses.swapPairMembers.useMutation();
 
   useEffect(() => {
     if (promptQ.data && !text) setText(promptQ.data.prompt);
@@ -366,8 +397,32 @@ function DsMatchPanel() {
             </Card>
           )}
           <Card title={`全局最优配对 · ${data.globalPairs.length} 对`}>
+            <p className="text-xs mb-3" style={{ color: "#a3988a" }}>要调整：按住一个人的名字拖到另一对的人身上即可交换（只对待发送的配对生效，「匹配结果」页签同步变化）。</p>
             <div className="flex flex-col gap-2">
-              {data.globalPairs.map((p, i) => <PairRow key={i} p={p} rank={i + 1} />)}
+              {data.globalPairs.map((p, i) => (
+                <PairRow
+                  key={p.matchId ?? i}
+                  p={p}
+                  rank={i + 1}
+                  dragSrc={dragSrc}
+                  onDragStart={setDragSrc}
+                  onDrop={(target) => {
+                    if (!dragSrc || (dragSrc.matchId === target.matchId && dragSrc.side === target.side)) return;
+                    setErr("");
+                    swap.mutate(
+                      { idA: dragSrc.matchId, sideA: dragSrc.side, idB: target.matchId, sideB: target.side },
+                      {
+                        onSuccess: () => {
+                          setDragSrc(null);
+                          void utils.responses.dsMatchResult.invalidate();
+                          void utils.responses.airdropQueue.invalidate();
+                        },
+                        onError: (e) => setErr(trpcErrorMessage(e)),
+                      },
+                    );
+                  }}
+                />
+              ))}
             </div>
           </Card>
           <div className="grid md:grid-cols-2 gap-4">
@@ -424,6 +479,7 @@ function AirdropPanel() {
   const utils = trpc.useUtils();
   const [err, setErr] = useState("");
   const [previewFor, setPreviewFor] = useState<number | null>(null);
+  const [blessingFor, setBlessingFor] = useState<{ id: number; man: string; woman: string } | null>(null);
 
   const run = async (p: Promise<unknown>) => {
     setErr("");
@@ -434,7 +490,6 @@ function AirdropPanel() {
   if (q.error || !q.data) return <p className="text-sm" style={{ color: "#a3988a" }}>暂无数据（需要数据库连接正常）。</p>;
   const items = q.data.items;
   const pending = items.filter((i) => i.state === "pending_send");
-  const previewItem = previewFor != null ? items.find((i) => i.id === previewFor) ?? null : null;
 
   return (
     <>
@@ -470,31 +525,110 @@ function AirdropPanel() {
                   {!i.manBound || !i.womanBound ? ` · ${[!i.manBound && `${i.man}未绑定`, !i.womanBound && `${i.woman}未绑定`].filter(Boolean).join("、")}` : ""}
                 </p>
               </div>
-              {i.state === "pending_send" && (
+              <div className="flex gap-1.5 shrink-0">
                 <button
-                  onClick={() => setPreviewFor(i.id)}
-                  className="text-xs px-4 py-2 rounded-full shrink-0"
-                  style={{ background: "#F97028", color: "#FFFDF6" }}
+                  onClick={() => setBlessingFor(i)}
+                  className="text-xs px-3 py-2 rounded-full"
+                  style={{ background: "#FFFDF6", color: "#7a7060", border: "2px solid #E8DCC0" }}
                 >
-                  确认发送
+                  推荐语
                 </button>
-              )}
+                {i.state === "pending_send" && (
+                  <button
+                    onClick={() => setPreviewFor(i.id)}
+                    className="text-xs px-4 py-2 rounded-full"
+                    style={{ background: "#F97028", color: "#FFFDF6" }}
+                  >
+                    确认发送
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
       </Card>
 
       <ManualPairsCard />
-      {previewItem && (
+      {previewFor != null && (
         <AirdropPreviewDialog
-          item={previewItem}
+          item={items.find((x) => x.id === previewFor)!}
           onClose={(sent) => {
             setPreviewFor(null);
             if (sent) void utils.responses.airdropQueue.invalidate();
           }}
         />
       )}
+      {blessingFor && (
+        <BlessingDialog
+          matchId={blessingFor.id}
+          man={blessingFor.man}
+          woman={blessingFor.woman}
+          onClose={() => setBlessingFor(null)}
+        />
+      )}
     </>
+  );
+}
+
+/** 月老推荐语弹窗：AI 生成/重新生成，给男方和女方各一段 */
+function BlessingDialog({ matchId, man, woman, onClose }: { matchId: number; man: string; woman: string; onClose: () => void }) {
+  const gen = trpc.responses.pairBlessing.useMutation();
+  const [texts, setTexts] = useState<{ forMan: string; forWoman: string } | null>(null);
+  const [err, setErr] = useState("");
+  const [copied, setCopied] = useState("");
+
+  const generate = (regenerate: boolean) => {
+    setErr("");
+    gen.mutate({ matchId, regenerate }, {
+      onSuccess: (r) => setTexts({ forMan: r.forMan, forWoman: r.forWoman }),
+      onError: (e) => setErr(trpcErrorMessage(e, "生成失败")),
+    });
+  };
+  // 打开时先取缓存（有就直接展示，不重复花 token）
+  useEffect(() => { generate(false); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const copy = async (label: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(label);
+      setTimeout(() => setCopied(""), 1500);
+    } catch { /* 剪贴板不可用时静默 */ }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(18,18,18,0.45)" }} onClick={onClose}>
+      <div className="w-full max-w-lg max-h-[85vh] overflow-auto rounded-3xl p-6" style={{ background: "#FFFDF6" }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-start mb-3">
+          <h2 className="font-display text-xl" style={{ color: "#121212" }}>{man} × {woman} · 月老推荐语</h2>
+          <button onClick={onClose} className="text-sm px-3 py-1 rounded-full" style={{ background: "#FBF3E3", color: "#7a7060" }}>关闭</button>
+        </div>
+        {gen.isPending && !texts && <p className="text-sm" style={{ color: "#a3988a" }}>月老斟酌措辞中…</p>}
+        {err && <p className="text-sm mb-2" style={{ color: "#9a3412" }}>{err}</p>}
+        {texts && (
+          <div className="flex flex-col gap-3">
+            {([["发给 " + man, texts.forMan, "man"], ["发给 " + woman, texts.forWoman, "woman"]] as const).map(([label, text, key]) => (
+              <div key={key} className="rounded-xl p-4" style={{ background: key === "man" ? "#FFF1E8" : "#FBEDF1" }}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-xs font-semibold" style={{ color: "#F97028" }}>{label}</p>
+                  <button onClick={() => copy(key, text)} className="text-xs px-2.5 py-1 rounded-full" style={{ background: "#FFFDF6", color: "#7a7060" }}>
+                    {copied === key ? "✓ 已复制" : "复制"}
+                  </button>
+                </div>
+                <p className="text-sm leading-relaxed" style={{ color: "#3d3830" }}>{text}</p>
+              </div>
+            ))}
+            <button
+              onClick={() => generate(true)}
+              disabled={gen.isPending}
+              className="text-sm px-4 py-2.5 rounded-full disabled:opacity-50"
+              style={{ background: "#F3ECD2", color: "#7a7060" }}
+            >
+              {gen.isPending ? "生成中…" : "重新生成（再花一次 AI）"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

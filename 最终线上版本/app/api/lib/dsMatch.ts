@@ -580,13 +580,15 @@ export async function runDeepseekMatch(): Promise<void> {
       const man = Object.values(pool.idMap).find((x) => x.name === p.man);
       const woman = Object.values(pool.idMap).find((x) => x.name === p.woman);
       if (!man || !woman) continue;
-      await db.insert(matches).values({
+      const inserted = await db.insert(matches).values({
         weekKey,
         manProfileId: man.profileId,
         womanProfileId: woman.profileId,
         reason: `AI匹配 · 和谐 ${p.harmony}（男 ${p.manSat} / 女 ${p.womanSat}）`,
         state: "pending_send",
       });
+      // 把 matchId 回贴到结果里，AI匹配页拖拽调整直接改这些行
+      (p as { matchId?: number }).matchId = Number(inserted[0].insertId);
     }
 
     await setSetting(DS_RESULT_KEY, JSON.stringify(result));

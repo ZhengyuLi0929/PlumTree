@@ -55,6 +55,11 @@ type MeData = {
 export default function Me() {
   // 预览口令：/me?preview=142857（线上也可查看；写库只在本地开发环境生效）
   const preview = new URLSearchParams(window.location.search).get("preview") === "142857";
+  // 灰度开关：?beta=1 开启并在本浏览器记住，?beta=0 关闭
+  const q = new URLSearchParams(window.location.search);
+  if (q.get("beta") === "1") sessionStorage.setItem("tz_beta", "1");
+  if (q.get("beta") === "0") sessionStorage.removeItem("tz_beta");
+  const beta = sessionStorage.getItem("tz_beta") === "1";
   // 未登录/登录过期的失败立即落到登录页，不再白等一个 retry 周期
   const me = trpc.responses.memberMe.useQuery(preview ? { preview: true } : undefined, {
     retry: preview
@@ -64,12 +69,12 @@ export default function Me() {
           return failureCount < 1;
         },
   });
-  if (preview && me.data) return <Desk data={me.data as MeData} onLogout={() => { window.location.href = "/me"; }} preview />;
+  if (preview && me.data) return <Desk data={me.data as MeData} onLogout={() => { window.location.href = "/me"; }} preview beta={beta} />;
   if (me.isLoading) {
     return <Shell><p className="text-center py-20 font-display" style={{ color: "#a3988a" }}>加载中…</p></Shell>;
   }
   if (me.error || !me.data) return <Login onOk={() => void me.refetch()} />;
-  return <Desk data={me.data as MeData} onLogout={() => void me.refetch()} />;
+  return <Desk data={me.data as MeData} onLogout={() => void me.refetch()} beta={beta} />;
 }
 
 /* ---------- 登录（姓名+手机号+密码；短信验证码方式保留在后端，回滚时恢复） ---------- */
@@ -516,8 +521,9 @@ function ProfileCard({ p, preview }: { p: MeData["profile"]; preview: boolean })
 }
 
 /* ---------- 主页 ---------- */
-function Desk({ data, onLogout, preview = false }: { data: MeData; onLogout: () => void; preview?: boolean }) {
+function Desk({ data, onLogout, preview = false, beta = false }: { data: MeData; onLogout: () => void; preview?: boolean; beta?: boolean }) {
   const logout = trpc.responses.memberLogout.useMutation({ onSuccess: onLogout });
+  const [tab, setTab] = useState<"profile" | "matchmaker">("profile");
   const p = data.profile;
   const type = data.quiz?.typeCode && TYPES[data.quiz.typeCode] ? TYPES[data.quiz.typeCode] : null;
   const scores = data.quiz
@@ -556,6 +562,32 @@ function Desk({ data, onLogout, preview = false }: { data: MeData; onLogout: () 
           <button type="button" onClick={() => logout.mutate()} className="text-sm" style={{ color: "#7a7060" }}>退出</button>
         )}
       </div>
+
+      {beta && (
+        <div className="flex gap-2 mb-4">
+          {(["profile", "matchmaker"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              className="font-display text-sm px-6 py-2.5 rounded-full transition-all"
+              style={{
+                background: tab === t ? "#F97028" : "#FFFDF6",
+                color: tab === t ? "#FFFDF6" : "#7a7060",
+                border: "2px solid",
+                borderColor: tab === t ? "#F97028" : "#E8DCC0",
+              }}
+            >
+              {t === "profile" ? "我的资料" : "月老"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {beta && tab === "matchmaker" ? (
+        <MatchmakerTab preview={preview} name={p.name} />
+      ) : (
+        <>
 
       {/* 人格卡 */}
       <div className="rounded-3xl p-6 md:p-8 mb-4" style={{ background: "#FFFDF6" }}>
@@ -625,7 +657,291 @@ function Desk({ data, onLogout, preview = false }: { data: MeData; onLogout: () 
       <ProfileCard p={p} preview={preview} />
       <DatePrefsCard raw={p.datePrefs} participate={p.participate === true} preview={preview} />
       {!preview && <ChangePasswordCard />}
+        </>
+      )}
     </Shell>
+  );
+}
+
+/* ---------- 月老 tab（beta）：本周配对 + 小纸条 + 月老对话 + 回访 ---------- */
+function cstDow() {
+  return new Date(Date.now() + 8 * 3600 * 1000).getUTCDay(); // 0=周日…6=周六
+}
+const NOTE_OPEN_DOWS = [3, 4, 5]; // 周三至周五
+const FEEDBACK_DOWS = [1, 2]; // 周一周二
+
+function MatchmakerTab({ preview, name }: { preview: boolean; name: string }) {
+  if (preview) return <MatchmakerPreview name={name} />;
+  return <MatchmakerLive />;
+}
+
+type MatchInfo = {
+  match: { id: number; weekKey: string; state: string; reason: string | null } | null;
+  partner: { birthYear: number | null; city: string | null; job: string | null; height: number | null; mbti: string | null; intro: string | null } | null;
+  notes: { id: number; fromMe: boolean; content: string; createdAt: string }[];
+  blessingForMe: string | null;
+  quotaLeft: number;
+};
+
+const MATCH_STATE_TEXT: Record<string, string> = {
+  sent: "已空投", chatting: "传话中", confirmed: "已确认见面", dating: "约会进行中",
+};
+
+function MatchmakerLive() {
+  const utils = trpc.useUtils();
+  const info = trpc.responses.memberMatchInfo.useQuery(undefined, { refetchInterval: 15000 });
+  const sendNote = trpc.responses.memberSendNote.useMutation();
+  const botChat = trpc.responses.memberBotChat.useMutation();
+  const botHistory = trpc.responses.memberBotHistory.useQuery();
+  const feedback = trpc.responses.memberWebFeedback.useMutation();
+  const [note, setNote] = useState("");
+  const [chatText, setChatText] = useState("");
+  const [fb, setFb] = useState<{ met: number | null; score: number; willing: string }>({ met: null, score: 0, willing: "" });
+  const [toast, setToast] = useState("");
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flash = (m: string) => {
+    setToast(m);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 2500);
+  };
+
+  const data = info.data as MatchInfo | undefined;
+  const dow = cstDow();
+  const noteOpen = NOTE_OPEN_DOWS.includes(dow);
+  const feedbackOpen = FEEDBACK_DOWS.includes(dow);
+
+  const submitNote = () => {
+    const text = note.trim();
+    if (!text) return;
+    sendNote.mutate({ text }, {
+      onSuccess: (r) => {
+        if (r.ok) {
+          setNote("");
+          flash("小纸条已递出");
+          void utils.responses.memberMatchInfo.invalidate();
+        } else {
+          flash(r.error ?? "发送失败");
+        }
+      },
+      onError: (e) => flash(trpcErrorMessage(e, "发送失败")),
+    });
+  };
+
+  const submitChat = () => {
+    const text = chatText.trim();
+    if (!text) return;
+    setChatText("");
+    botChat.mutate({ text }, {
+      onSuccess: () => void utils.responses.memberBotHistory.invalidate(),
+      onError: () => flash("月老这会儿有点忙，等下再聊"),
+    });
+  };
+
+  const submitFeedback = () => {
+    if (fb.met === null || fb.score === 0 || !fb.willing) return flash("三项都选一下再提交");
+    feedback.mutate({ met: fb.met, score: fb.score, willing: fb.willing }, {
+      onSuccess: (r) => flash(r.ok ? "收到，谢谢你认真反馈" : (r.error ?? "提交失败")),
+      onError: (e) => flash(trpcErrorMessage(e, "提交失败")),
+    });
+  };
+
+  return (
+    <>
+      {/* 本周配对卡 */}
+      <div className="rounded-3xl p-6 mb-4 animate-pop" style={{ background: "#FFFDF6", boxShadow: "0 6px 24px rgba(18,18,18,0.06)" }}>
+        <h2 className="font-display text-lg mb-3" style={{ color: "#121212" }}>本周的同桌</h2>
+        {info.isLoading && <p className="text-sm" style={{ color: "#a3988a" }}>加载中…</p>}
+        {data && !data.match && <p className="text-sm" style={{ color: "#a3988a" }}>本周还没有匹配对象。周三晚上月老会给你介绍。</p>}
+        {data?.match && data.partner && (
+          <>
+            <div className="rounded-2xl p-4 mb-3" style={{ background: "linear-gradient(135deg, #FFF1E8, #FBEDF1)" }}>
+              <p className="text-sm font-semibold mb-1" style={{ color: "#121212" }}>
+                {[
+                  data.partner.birthYear ? `${data.partner.birthYear} 年生` : "",
+                  data.partner.city,
+                  data.partner.job,
+                  data.partner.height ? `${data.partner.height}cm` : "",
+                  data.partner.mbti,
+                ].filter(Boolean).join(" · ")}
+                <span className="text-xs font-normal ml-2" style={{ color: "#F97028" }}>{MATCH_STATE_TEXT[data.match.state] ?? data.match.state}</span>
+              </p>
+              {data.partner.intro && <p className="text-xs leading-relaxed mt-1" style={{ color: "#5a5347" }}>{data.partner.intro}</p>}
+            </div>
+            {data.blessingForMe && (
+              <div className="rounded-2xl p-4" style={{ background: "#FBF3E3" }}>
+                <p className="font-display text-sm mb-1" style={{ color: "#F97028" }}>月老悄悄话</p>
+                <p className="text-sm leading-relaxed" style={{ color: "#3d3830" }}>{data.blessingForMe}</p>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* 小纸条 */}
+      <div className="rounded-3xl p-6 mb-4 animate-pop" style={{ background: "#FFFDF6", boxShadow: "0 6px 24px rgba(18,18,18,0.06)" }}>
+        <h2 className="font-display text-lg mb-1" style={{ color: "#121212" }}>递小纸条</h2>
+        <p className="text-xs mb-3" style={{ color: "#a3988a" }}>周三到周五，每天可以给 TA 递一张小纸条。</p>
+        {data?.match ? (
+          <>
+            {data.notes.length > 0 && (
+              <div className="flex flex-col gap-2 mb-3 max-h-48 overflow-auto">
+                {data.notes.map((n) => (
+                  <div key={n.id} className={`text-sm rounded-2xl px-4 py-2.5 max-w-[85%] ${n.fromMe ? "self-end" : "self-start"}`}
+                    style={{ background: n.fromMe ? "#F97028" : "#F3ECD2", color: n.fromMe ? "#FFFDF6" : "#121212" }}>
+                    {n.content}
+                  </div>
+                ))}
+              </div>
+            )}
+            {noteOpen ? (
+              data.quotaLeft > 0 ? (
+                <div className="flex gap-2">
+                  <input
+                    className="flex-1 px-4 py-3 rounded-xl text-sm outline-none"
+                    style={{ background: "#F3ECD2", color: "#121212" }}
+                    placeholder="写一句给对方的话…"
+                    value={note}
+                    maxLength={300}
+                    onChange={(e) => setNote(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") submitNote(); }}
+                  />
+                  <button
+                    type="button"
+                    onClick={submitNote}
+                    disabled={sendNote.isPending || !note.trim()}
+                    className="font-display text-sm px-5 rounded-full disabled:opacity-50"
+                    style={{ background: "#F97028", color: "#FFFDF6" }}
+                  >
+                    递出去
+                  </button>
+                </div>
+              ) : (
+                <p className="text-sm" style={{ color: "#a3988a" }}>今天的小纸条额度用完啦，明天再来。</p>
+              )
+            ) : (
+              <p className="text-sm" style={{ color: "#a3988a" }}>小纸条只在周三、周四、周五可以发送。</p>
+            )}
+          </>
+        ) : (
+          <p className="text-sm" style={{ color: "#a3988a" }}>有了本周的同桌之后，就可以递小纸条了。</p>
+        )}
+      </div>
+
+      {/* 月老对话 */}
+      <div className="rounded-3xl p-6 mb-4 animate-pop" style={{ background: "#FFFDF6", boxShadow: "0 6px 24px rgba(18,18,18,0.06)" }}>
+        <h2 className="font-display text-lg mb-3" style={{ color: "#121212" }}>和月老聊聊</h2>
+        <div className="flex flex-col gap-2 mb-3 max-h-64 overflow-auto">
+          {(botHistory.data ?? []).length === 0 && (
+            <p className="text-sm" style={{ color: "#a3988a" }}>还没有对话。说说你想找什么样的人，或者最近的心情。</p>
+          )}
+          {(botHistory.data ?? []).map((m) => (
+            <div key={m.id} className={`text-sm rounded-2xl px-4 py-2.5 max-w-[85%] leading-relaxed ${m.fromMe ? "self-end" : "self-start"}`}
+              style={{ background: m.fromMe ? "#F97028" : "#F3ECD2", color: m.fromMe ? "#FFFDF6" : "#121212" }}>
+              {m.content}
+            </div>
+          ))}
+          {botChat.isPending && <p className="text-xs" style={{ color: "#a3988a" }}>月老正在输入…</p>}
+        </div>
+        <div className="flex gap-2">
+          <input
+            className="flex-1 px-4 py-3 rounded-xl text-sm outline-none"
+            style={{ background: "#F3ECD2", color: "#121212" }}
+            placeholder="和月老说点什么…"
+            value={chatText}
+            maxLength={500}
+            onChange={(e) => setChatText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") submitChat(); }}
+          />
+          <button
+            type="button"
+            onClick={submitChat}
+            disabled={botChat.isPending || !chatText.trim()}
+            className="font-display text-sm px-5 rounded-full disabled:opacity-50"
+            style={{ background: "#121212", color: "#F3ECD2" }}
+          >
+            发送
+          </button>
+        </div>
+      </div>
+
+      {/* 回访 */}
+      <div className="rounded-3xl p-6 animate-pop" style={{ background: "#FFFDF6", boxShadow: "0 6px 24px rgba(18,18,18,0.06)" }}>
+        <h2 className="font-display text-lg mb-1" style={{ color: "#121212" }}>约会回访</h2>
+        <p className="text-xs mb-3" style={{ color: "#a3988a" }}>周一、周二开放，说说上周末的约会怎么样。</p>
+        {feedbackOpen ? (
+          <>
+            <div className="flex gap-2 mb-3">
+              {([["成了", 1], ["没成", 0]] as const).map(([label, v]) => (
+                <button key={v} type="button" onClick={() => setFb((f) => ({ ...f, met: v }))}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
+                  style={{ background: fb.met === v ? "#F97028" : "#F3ECD2", color: fb.met === v ? "#FFFDF6" : "#5a5347" }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2 mb-3">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <button key={s} type="button" onClick={() => setFb((f) => ({ ...f, score: s }))}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
+                  style={{ background: fb.score === s ? "#F97028" : "#F3ECD2", color: fb.score === s ? "#FFFDF6" : "#5a5347" }}>
+                  {s}分
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2 mb-3">
+              {["想", "不了"].map((v) => (
+                <button key={v} type="button" onClick={() => setFb((f) => ({ ...f, willing: v }))}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
+                  style={{ background: fb.willing === v ? "#F97028" : "#F3ECD2", color: fb.willing === v ? "#FFFDF6" : "#5a5347" }}>
+                  {v === "想" ? "想继续" : "不了"}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={submitFeedback}
+              disabled={feedback.isPending}
+              className="w-full font-display text-base py-3 rounded-full disabled:opacity-50"
+              style={{ background: "#F97028", color: "#FFFDF6" }}
+            >
+              {feedback.isPending ? "提交中…" : "提交回访"}
+            </button>
+          </>
+        ) : (
+          <p className="text-sm" style={{ color: "#a3988a" }}>还没到回访时间，周一见。</p>
+        )}
+      </div>
+      <Toast msg={toast} />
+    </>
+  );
+}
+
+/** 预览模式下的月老 tab：静态假数据，看个样子 */
+function MatchmakerPreview({ name }: { name: string }) {
+  return (
+    <>
+      <div className="rounded-3xl p-6 mb-4 animate-pop" style={{ background: "#FFFDF6" }}>
+        <h2 className="font-display text-lg mb-3" style={{ color: "#121212" }}>本周的同桌</h2>
+        <div className="rounded-2xl p-4 mb-3" style={{ background: "linear-gradient(135deg, #FFF1E8, #FBEDF1)" }}>
+          <p className="text-sm font-semibold mb-1" style={{ color: "#121212" }}>
+            1998 年生 · 北京 · 产品经理 · 168cm · INFJ<span className="text-xs font-normal ml-2" style={{ color: "#F97028" }}>传话中</span>
+          </p>
+          <p className="text-xs leading-relaxed mt-1" style={{ color: "#5a5347" }}>周末爬山、做饭、看纪录片，最近在学陶艺。</p>
+        </div>
+        <div className="rounded-2xl p-4" style={{ background: "#FBF3E3" }}>
+          <p className="font-display text-sm mb-1" style={{ color: "#F97028" }}>月老悄悄话</p>
+          <p className="text-sm leading-relaxed" style={{ color: "#3d3830" }}>
+            {name}，听我说！TA 是那个会把「随便吃点」做成四菜一汤的人。你爱看展 TA 爱拍照，你俩站一块就是周末海报本人。别犹豫了，周三给 TA 递张纸条吧！
+          </p>
+        </div>
+      </div>
+      {["递小纸条（周三至周五，每天一条）", "和月老聊聊", "约会回访（周一、周二）"].map((t) => (
+        <div key={t} className="rounded-3xl p-6 mb-4" style={{ background: "#FFFDF6" }}>
+          <h2 className="font-display text-lg" style={{ color: "#121212" }}>{t.split("（")[0]}</h2>
+          <p className="text-xs mt-1" style={{ color: "#a3988a" }}>预览模式，登录后这里是真的能聊的。</p>
+        </div>
+      ))}
+    </>
   );
 }
 

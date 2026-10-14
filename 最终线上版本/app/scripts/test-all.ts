@@ -3,8 +3,8 @@
 // 运行：npm run db:up && npm run test:all
 import fs from "node:fs";
 
-// 强制 dev 通道（不碰真实短信）
-for (const key of ["TENCENT_SECRET_ID","TENCENT_SECRET_KEY","TENCENT_SMS_SDK_APP_ID","TENCENT_SMS_SIGN_NAME","TENCENT_SMS_TEMPLATE_ID","ALIYUN_ACCESS_KEY_ID","ALIYUN_ACCESS_KEY_SECRET","SMS_SIGN_NAME","SMS_OTP_TEMPLATE"]) {
+// 强制 dev 通道（不碰真实短信与真实 LLM——LLM 走占位回复和 mock 抽取，确定性测试）
+for (const key of ["TENCENT_SECRET_ID","TENCENT_SECRET_KEY","TENCENT_SMS_SDK_APP_ID","TENCENT_SMS_SIGN_NAME","TENCENT_SMS_TEMPLATE_ID","ALIYUN_ACCESS_KEY_ID","ALIYUN_ACCESS_KEY_SECRET","SMS_SIGN_NAME","SMS_OTP_TEMPLATE","LLM_API_KEY","LLM_BASE_URL"]) {
   process.env[key] = "";
 }
 
@@ -32,7 +32,7 @@ async function main() {
   if (!hasDatabase()) { console.error("需要 DATABASE_URL"); process.exit(1); }
 
   type Res = { ok: boolean; code: string; message: string; data: any; headers?: Headers };
-  const QUERIES = new Set(["memberMe", "roster", "adminMe", "visitStats", "stats", "statsV2", "statsV3", "poolList", "airdropQueue", "merchantsList", "redemptionsList", "export", "exportOps", "ping"]);
+  const QUERIES = new Set(["memberMe", "roster", "adminMe", "visitStats", "stats", "statsV2", "statsV3", "poolList", "airdropQueue", "merchantsList", "redemptionsList", "export", "exportOps", "ping", "memberMatchInfo", "memberBotHistory", "dsGetPrompt", "dsGetTunables", "dsMatchStatus", "dsMatchResult", "airdropPreview", "userDetail"]);
   async function call(proc: string, input?: unknown, cookie?: string, auth?: string): Promise<Res> {
     const isQuery = QUERIES.has(proc);
     const url = `http://test.local/api/trpc/responses.${proc}${isQuery && input !== undefined ? `?input=${encodeURIComponent(JSON.stringify({ json: input }))}` : ""}`;
@@ -60,6 +60,8 @@ async function main() {
     for (const pr of profs) {
       await db.delete(schema.matchPool).where(eq(schema.matchPool.profileId, pr.id));
       await db.delete(schema.photos).where(eq(schema.photos.profileId, pr.id));
+      await db.delete(schema.webMessages).where(eq(schema.webMessages.fromProfileId, pr.id));
+      await db.delete(schema.webMessages).where(eq(schema.webMessages.toProfileId, pr.id));
       await db.delete(schema.matches).where(or(eq(schema.matches.manProfileId, pr.id), eq(schema.matches.womanProfileId, pr.id)));
     }
     await db.delete(schema.profiles).where(or(like(schema.profiles.name, `${P}%`), inArray(schema.profiles.sessionId, SIDS)));
@@ -305,6 +307,55 @@ async function main() {
     assert("H29 轮空优先进配对", prio.pairs[0]?.man.profileId === 4);
     const { TYPES } = await import("../src/data/types");
     assert("H30 16 型官配表引用的类型都存在", Object.values(TYPES).every((t) => TYPES[t.matchCode]));
+
+    // ============ I. 网页互动（/me 月老 tab）与配对调整 ============
+    console.log("I. 网页互动与配对调整");
+    const week = enrollLib.isoWeekKey();
+    const [pM] = await db.select().from(schema.profiles).where(eq(schema.profiles.sessionId, "zzt-alpha-sess"));
+    const [pW] = await db.select().from(schema.profiles).where(eq(schema.profiles.sessionId, "zzt-dup-2"));
+    const [pX] = await db.select().from(schema.profiles).where(eq(schema.profiles.sessionId, "zzt-move"));
+    const [pY] = await db.select().from(schema.profiles).where(eq(schema.profiles.sessionId, "zzt-enroll-ok"));
+    // 两对本周待发送配对
+    const m1 = await db.insert(schema.matches).values({ weekKey: week, manProfileId: pM.id, womanProfileId: pW.id, state: "sent", reason: "测试配对1" });
+    const m2 = await db.insert(schema.matches).values({ weekKey: week, manProfileId: pX.id, womanProfileId: pY.id, state: "pending_send", reason: "测试配对2" });
+    const m1id = Number(m1[0].insertId), m2id = Number(m2[0].insertId);
+
+    // 推荐语：mock LLM 下应优雅报错（不崩溃）
+    const bless = await call("pairBlessing", { matchId: m2id }, undefined, adminAuth);
+    assert("I5 推荐语生成（LLM 在线）或优雅报错", (bless.ok && bless.data.forMan.length > 10) || (!bless.ok && bless.message.length > 0), bless.ok ? "" : bless.message);
+
+    // 小纸条（强制周三传话期）
+    process.env.BOT_FORCE_PHASE = "chatting";
+    const info0 = await call("memberMatchInfo", undefined, cookieA);
+    assert("I6 memberMatchInfo 返回配对与额度", info0.ok && info0.data.match?.id === m1id && info0.data.quotaLeft === 1, info0.ok ? JSON.stringify({ match: info0.data.match?.id, quota: info0.data.quotaLeft }) : `${info0.code} ${info0.message}`);
+    const n1 = await call("memberSendNote", { text: "你好呀，周末见？" }, cookieA);
+    assert("I7 第一张纸条 → ok", n1.ok && n1.data.ok === true);
+    const n2 = await call("memberSendNote", { text: "第二条" }, cookieA);
+    assert("I8 当天第二张 → 额度提示", n2.ok && n2.data.ok === false && n2.data.error.includes("额度"));
+    const n3 = await call("memberSendNote", { text: "约炮吗" }, cookieA);
+    assert("I9 敏感纸条 → 拦截", n3.ok && n3.data.ok === false);
+    const infoDup = await call("memberMatchInfo", undefined, cookieDup);
+    assert("I10 对方（乙）能看到纸条", infoDup.ok && infoDup.data.notes.some((n: any) => n.content.includes("你好呀")), infoDup.ok ? JSON.stringify(infoDup.data.notes) : infoDup.message);
+
+    // 月老网页对话（无 LLM key → 占位回复但仍落库）
+    const chatRes = await call("memberBotChat", { text: "我想找个爱爬山的人" }, cookieA);
+    assert("I11 网页对话有回复", chatRes.ok && typeof chatRes.data.reply === "string" && chatRes.data.reply.length > 0);
+    const hist = await call("memberBotHistory", undefined, cookieA);
+    assert("I12 对话历史已落库", hist.ok && hist.data.length >= 2, hist.ok ? `len=${hist.data.length}` : hist.message);
+    await new Promise((r) => setTimeout(r, 1200));
+    const [profA] = await db.select().from(schema.profiles).where(eq(schema.profiles.id, pM.id));
+    assert("I13 对话沉淀到 chat_facts", Boolean(profA.chatFacts && profA.chatFacts.includes("mock-extract")), profA.chatFacts ?? "空");
+
+    // 回访（强制周一周二）
+    process.env.BOT_FORCE_PHASE = "feedback";
+    await db.update(schema.matches).set({ state: "dating" }).where(eq(schema.matches.id, m1id));
+    const fb = await call("memberWebFeedback", { met: 1, score: 4, willing: "想" }, cookieA);
+    assert("I14 回访提交 → ok", fb.ok && fb.data.ok === true);
+    const [m1Fb] = await db.select().from(schema.matches).where(eq(schema.matches.id, m1id));
+    assert("I15 回访写入 matches（score=4, done）", m1Fb.score === 4 && m1Fb.state === "done");
+    const fbBad = await call("memberWebFeedback", { met: 0, score: 2, willing: "不了" }, cookieDup);
+    assert("I16 差评回访 → 也收（出池由调度侧查）", fbBad.ok);
+    delete process.env.BOT_FORCE_PHASE;
 
     // ============ 收尾 ============
     console.log("\n============================");

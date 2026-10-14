@@ -174,6 +174,9 @@ export const matches = mysqlTable("matches", {
   met: int("met"),
   score: int("score"),
   willing: varchar("willing", { length: 8 }),
+  /** 月老推荐语（AI 生成，给男方/女方各一段） */
+  blessingMan: text("blessing_man"),
+  blessingWoman: text("blessing_woman"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -260,8 +263,7 @@ export const photos = mysqlTable("photos", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-/** 会员初始/自改密码（临时登录方式；手机号唯一键）。回滚短信登录时此表停用 */
-export const memberCredentials = mysqlTable("member_credentials", {
+/** 会员初始/自改密码（临时登录方式；手机号唯一键）。回滚短信登录时此表停用 */export const memberCredentials = mysqlTable("member_credentials", {
   phone: varchar("phone", { length: 20 }).primaryKey(),
   passwordHash: varchar("password_hash", { length: 64 }).notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -273,4 +275,17 @@ export const settings = mysqlTable("settings", {
   key: varchar("key", { length: 64 }).primaryKey(),
   value: text("value"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+/** 网页版消息：传话小纸条（note）与月老对话（bot 往返） */
+export const webMessages = mysqlTable("web_messages", {
+  id: serial("id").primaryKey(),
+  /** 发送方 profile_id；bot 回复时 from=对方、to=接收者 */
+  fromProfileId: bigint("from_profile_id", { mode: "number" }).notNull(),
+  toProfileId: bigint("to_profile_id", { mode: "number" }),
+  /** note=给匹配对象的小纸条 user/bot=月老网页对话 */
+  kind: varchar("kind", { length: 8 }).notNull(),
+  content: text("content"),
+  dayKey: varchar("day_key", { length: 10 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });

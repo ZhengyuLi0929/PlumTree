@@ -166,6 +166,8 @@ const DDL = [
     met int,
     score int,
     willing varchar(8),
+    blessing_man text,
+    blessing_woman text,
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     KEY idx_matches_week (week_key)
@@ -242,6 +244,16 @@ const DDL = [
     value text,
     updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS web_messages (
+    id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    from_profile_id bigint NOT NULL,
+    to_profile_id bigint,
+    kind varchar(8) NOT NULL,
+    content text,
+    day_key varchar(10),
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_webmsg_from (from_profile_id)
+  )`,
 ];
 
 export async function ensureTable() {
@@ -264,6 +276,8 @@ export async function ensureTable() {
       `ALTER TABLE profiles MODIFY COLUMN city varchar(64) NULL`,
       `ALTER TABLE profiles MODIFY COLUMN grad_class varchar(64) NULL`,
       `ALTER TABLE profiles ADD COLUMN date_prefs text`,
+      `ALTER TABLE matches ADD COLUMN blessing_man text`,
+      `ALTER TABLE matches ADD COLUMN blessing_woman text`,
       `ALTER TABLE matches ADD COLUMN man_reply varchar(8)`,
       `ALTER TABLE matches ADD COLUMN woman_reply varchar(8)`,
       `ALTER TABLE matches ADD COLUMN man_note_days text`,

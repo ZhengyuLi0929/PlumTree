@@ -50,6 +50,8 @@ export function classifySms(text: string): SmsKind {
 }
 
 export function noteDayOpen(now = new Date()) {
+  // 测试钩子：与 weekly.phaseOf 共用
+  if (process.env.BOT_FORCE_PHASE === "chatting") return true;
   const cst = new Date(now.getTime() + 8 * 60 * 60 * 1000);
   const dow = cst.getUTCDay();
   return dow === 3 || dow === 4 || dow === 5;

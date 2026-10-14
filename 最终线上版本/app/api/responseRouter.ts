@@ -1317,6 +1317,117 @@ export const responseRouter = createRouter({
     return raw ? JSON.parse(raw) : null;
   }),
 
+  /** AI 配对拖拽调整：交换两条配对记录中指定侧的人（仅待发送状态可调） */
+  swapPairMembers: publicQuery
+    .input(
+      z.object({
+        idA: z.number().int().positive(),
+        sideA: z.enum(["man", "woman"]),
+        idB: z.number().int().positive(),
+        sideB: z.enum(["man", "woman"]),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      await requireAdmin(ctx.req);
+      if (input.idA === input.idB) fail("BAD_REQUEST", "同一对不用换");
+      await ensureTable();
+      const db = getDb();
+      const [a] = await db.select().from(matches).where(eq(matches.id, input.idA));
+      const [b] = await db.select().from(matches).where(eq(matches.id, input.idB));
+      if (!a || !b) fail("NOT_FOUND", "配对不存在");
+      if (a.state !== "pending_send" || b.state !== "pending_send") fail("PRECONDITION_FAILED", "只有待发送的配对可以调整");
+      const sideAKey = input.sideA === "man" ? "manProfileId" : "womanProfileId";
+      const sideBKey = input.sideB === "man" ? "manProfileId" : "womanProfileId";
+      const tmp = a[sideAKey];
+      await db.update(matches).set({ [sideAKey]: b[sideBKey] }).where(eq(matches.id, a.id));
+      await db.update(matches).set({ [sideBKey]: tmp }).where(eq(matches.id, b.id));
+
+      // 同步 AI匹配页展示用的存储结果（按 matchId 换名字）
+      const { getSetting, setSetting, DS_RESULT_KEY } = await import("./lib/dsMatch");
+      const raw = await getSetting(DS_RESULT_KEY);
+      if (raw) {
+        try {
+          const result = JSON.parse(raw) as { globalPairs?: { man: string; woman: string; matchId?: number }[] };
+          const pa = result.globalPairs?.find((p) => p.matchId === a.id);
+          const pb = result.globalPairs?.find((p) => p.matchId === b.id);
+          if (pa && pb) {
+            const nameA = input.sideA === "man" ? pa.man : pa.woman;
+            const nameB = input.sideB === "man" ? pb.man : pb.woman;
+            if (input.sideA === "man") pa.man = nameB; else pa.woman = nameB;
+            if (input.sideB === "man") pb.man = nameA; else pb.woman = nameA;
+            await setSetting(DS_RESULT_KEY, JSON.stringify(result));
+          }
+        } catch {
+          /* 结果同步失败不影响 matches 表已完成的交换 */
+        }
+      }
+      await logAudit("admin", "match.swap", `${input.idA}.${input.sideA} <-> ${input.idB}.${input.sideB}`);
+      return { ok: true };
+    }),
+
+  /** 生成/查看月老推荐语（AI 生成，落库缓存；regenerate=true 重新生成） */
+  pairBlessing: publicQuery
+    .input(z.object({ matchId: z.number().int().positive(), regenerate: z.boolean().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      await requireAdmin(ctx.req);
+      const { generateBlessing } = await import("./lib/blessing");
+      try {
+        const r = await generateBlessing(input.matchId, input.regenerate === true);
+        await logAudit("admin", "match.blessing", `match:${input.matchId}`);
+        return { ok: true as const, ...r };
+      } catch (err) {
+        fail("INTERNAL_SERVER_ERROR", err instanceof Error ? err.message : "生成失败");
+      }
+    }),
+
+  // ===== 会员网页互动（/me 月老 tab） =====
+
+  /** 我本周的配对 + 对方卡片 + 小纸条记录 + 今日剩余额度 + 给我的推荐语 */
+  memberMatchInfo: publicQuery.query(async ({ ctx }) => {
+    const profile = await requireMemberProfile(ctx.req);
+    const { noteHistory } = await import("./lib/webMember");
+    return noteHistory(profile.id);
+  }),
+
+  /** 给对方递小纸条（周三至周五，每天一条，内容安全过滤） */
+  memberSendNote: publicQuery
+    .input(z.object({ text: z.string().trim().min(1).max(300) }))
+    .mutation(async ({ input, ctx }) => {
+      const profile = await requireMemberProfile(ctx.req);
+      const { sendNote } = await import("./lib/webMember");
+      return sendNote(profile.id, input.text);
+    }),
+
+  memberBotHistory: publicQuery.query(async ({ ctx }) => {
+    const profile = await requireMemberProfile(ctx.req);
+    const { botHistoryWeb } = await import("./lib/webMember");
+    return botHistoryWeb(profile.id);
+  }),
+
+  /** 和月老网页对话（历史与需求沉淀进 profiles.chat_facts，与企微通道共用） */
+  memberBotChat: publicQuery
+    .input(z.object({ text: z.string().trim().min(1).max(500) }))
+    .mutation(async ({ input, ctx }) => {
+      const profile = await requireMemberProfile(ctx.req);
+      const { botChatWeb } = await import("./lib/webMember");
+      return botChatWeb(profile.id, input.text);
+    }),
+
+  /** 周一二回访（网页版） */
+  memberWebFeedback: publicQuery
+    .input(
+      z.object({
+        met: z.number().int().min(0).max(1),
+        score: z.number().int().min(1).max(5),
+        willing: z.string().trim().min(1).max(8),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const profile = await requireMemberProfile(ctx.req);
+      const { webFeedback } = await import("./lib/webMember");
+      return webFeedback(profile.id, input);
+    }),
+
   exportOps: publicQuery.query(async ({ ctx }) => {
     await requireAdmin(ctx.req);
     await ensureTable();
