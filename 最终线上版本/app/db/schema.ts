@@ -81,6 +81,8 @@ export const profiles = mysqlTable("profiles", {
   chatFacts: text("chat_facts"),
   /** 本周约会倾向 JSON：{ locations, activities, times, customLocation, customActivity } */
   datePrefs: text("date_prefs"),
+  /** 模拟日期（YYYY-MM-DD，仅灰度内测用；null=真实时间） */
+  simDate: varchar("sim_date", { length: 10 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

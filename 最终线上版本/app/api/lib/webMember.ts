@@ -32,8 +32,11 @@ export function maskedCard(p: ProfileRow) {
   };
 }
 
-/** 我本周的进行中的配对（已发送及以后的状态） */
-export async function myActiveMatch(profileId: number) {
+/** 我本周的进行中的配对（已发送及以后的状态）。
+ *  生产流程里配对先 pending_send，管理员在后台「确认发送」后才可见——模拟器里跳过这步。
+ *  模拟器中周二（还没空投）直接当作没配对。 */
+export async function myActiveMatch(profile: { id: number; simDate: string | null }) {
+  if (simDow(profile) === 2) return undefined; // 模拟周二：配对还没空投
   await ensureTable();
   const db = getDb();
   const rows = await db
@@ -42,44 +45,56 @@ export async function myActiveMatch(profileId: number) {
     .where(
       and(
         eq(matches.weekKey, isoWeekKey()),
-        or(eq(matches.manProfileId, profileId), eq(matches.womanProfileId, profileId)),
+        or(eq(matches.manProfileId, profile.id), eq(matches.womanProfileId, profile.id)),
       ),
     )
     .orderBy(desc(matches.id));
   return rows.find((r) => ["sent", "chatting", "confirmed", "dating"].includes(r.state));
 }
 
-export async function noteQuotaLeft(profileId: number): Promise<number> {
+export async function noteQuotaLeft(profile: { id: number; simDate: string | null }): Promise<number> {
   await ensureTable();
   const db = getDb();
   const rows = await db
     .select()
     .from(webMessages)
-    .where(and(eq(webMessages.fromProfileId, profileId), eq(webMessages.kind, "note"), eq(webMessages.dayKey, cstDayKey())));
+    .where(and(eq(webMessages.fromProfileId, profile.id), eq(webMessages.kind, "note"), eq(webMessages.dayKey, cstDayKey(effectiveNow(profile)))));
   return Math.max(0, 1 - rows.length);
 }
 
-export async function sendNote(profileId: number, text: string) {
-  if (!noteDayOpen()) return { ok: false as const, error: NOTE_TEXT.closed };
-  if ((await noteQuotaLeft(profileId)) <= 0) return { ok: false as const, error: NOTE_TEXT.quotaUsed };
+export async function sendNote(profile: { id: number; simDate: string | null }, text: string) {
+  if (!noteDayOpen(effectiveNow(profile))) return { ok: false as const, error: NOTE_TEXT.closed };
+  if ((await noteQuotaLeft(profile)) <= 0) return { ok: false as const, error: NOTE_TEXT.quotaUsed };
   const screened = await screenText(text);
   if (!screened.ok) return { ok: false as const, error: NOTE_TEXT.blocked };
-  const match = await myActiveMatch(profileId);
+  const match = await myActiveMatch(profile);
   if (!match) return { ok: false as const, error: NOTE_TEXT.noMatch };
-  const partnerId = match.manProfileId === profileId ? match.womanProfileId : match.manProfileId;
+  const partnerId = match.manProfileId === profile.id ? match.womanProfileId : match.manProfileId;
   await ensureTable();
   const db = getDb();
-  await db.insert(webMessages).values({ fromProfileId: profileId, toProfileId: partnerId, kind: "note", content: text.trim(), dayKey: cstDayKey() });
+  await db.insert(webMessages).values({ fromProfileId: profile.id, toProfileId: partnerId, kind: "note", content: text.trim(), dayKey: cstDayKey(effectiveNow(profile)) });
   return { ok: true as const };
 }
 
-export async function noteHistory(profileId: number) {
-  const match = await myActiveMatch(profileId);
-  if (!match) return { match: null, partner: null, notes: [], blessingForMe: null, quotaLeft: await noteQuotaLeft(profileId) };
+export async function noteHistory(profile: ProfileRow) {
+  const match = await myActiveMatch(profile);
+  const sim = profile.simDate ? { date: profile.simDate, label: simLabel(profile), dow: simDow(profile) } : null;
+  if (!match) return { match: null, partner: null, notes: [], blessingForMe: null, quotaLeft: await noteQuotaLeft(profile), sim };
   await ensureTable();
   const db = getDb();
-  const partnerId = match.manProfileId === profileId ? match.womanProfileId : match.manProfileId;
+  const partnerId = match.manProfileId === profile.id ? match.womanProfileId : match.manProfileId;
   const [partner] = await db.select().from(profiles).where(eq(profiles.id, partnerId));
+
+  // 模拟器里周三首次亮相：若还没有推荐语就后台异步生成（生产流程是管理员在后台生成）。
+  // 绝不阻塞本接口（DeepSeek 慢时会把页面拖超时）。
+  const isMan = match.manProfileId === profile.id;
+  let blessingForMe = isMan ? match.blessingMan : match.blessingWoman;
+  if (sim && !blessingForMe) {
+    void import("./blessing")
+      .then((m) => m.generateBlessing(match.id))
+      .catch((err) => console.error("[sim] blessing:", err));
+  }
+
   const rows = await db
     .select()
     .from(webMessages)
@@ -87,20 +102,35 @@ export async function noteHistory(profileId: number) {
       and(
         eq(webMessages.kind, "note"),
         or(
-          and(eq(webMessages.fromProfileId, profileId), eq(webMessages.toProfileId, partnerId)),
-          and(eq(webMessages.fromProfileId, partnerId), eq(webMessages.toProfileId, profileId)),
+          and(eq(webMessages.fromProfileId, profile.id), eq(webMessages.toProfileId, partnerId)),
+          and(eq(webMessages.fromProfileId, partnerId), eq(webMessages.toProfileId, profile.id)),
         ),
       ),
     )
     .orderBy(webMessages.id);
-  const isMan = match.manProfileId === profileId;
   return {
     match: { id: match.id, weekKey: match.weekKey, state: match.state, reason: match.reason },
     partner: partner ? maskedCard(partner) : null,
-    notes: rows.map((r) => ({ id: r.id, fromMe: r.fromProfileId === profileId, content: r.content, createdAt: r.createdAt })),
-    blessingForMe: isMan ? match.blessingMan : match.blessingWoman,
-    quotaLeft: await noteQuotaLeft(profileId),
+    notes: rows.map((r) => ({ id: r.id, fromMe: r.fromProfileId === profile.id, content: r.content, createdAt: r.createdAt })),
+    blessingForMe,
+    quotaLeft: await noteQuotaLeft(profile),
+    sim,
   };
+}
+
+// ===== 模拟器（灰度内测）：每人一个 sim_date，全流程按模拟日期推进 =====
+export function effectiveNow(profile: { simDate: string | null }): Date {
+  return profile.simDate ? new Date(`${profile.simDate}T12:00:00+08:00`) : new Date();
+}
+
+export function simDow(profile: { simDate: string | null }): number | null {
+  return profile.simDate ? effectiveNow(profile).getUTCDay() : null;
+}
+
+const DOW_NAME = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+export function simLabel(profile: { simDate: string | null }): string | null {
+  const d = simDow(profile);
+  return d === null ? null : DOW_NAME[d];
 }
 
 // ===== 月老网页对话 =====
@@ -162,20 +192,23 @@ export async function botChatWeb(profileId: number, text: string) {
 }
 
 // ===== 周一周二回访（网页版，逻辑与 botBrain.tryFeedback 一致） =====
-export async function webFeedback(profileId: number, fb: { met: number; score: number; willing: string }) {
-  if (phaseOf() !== "feedback") return { ok: false as const, error: "回访只在周一、周二开放。" };
+export async function webFeedback(profile: { id: number; simDate: string | null }, fb: { met: number; score: number; willing: string }) {
+  if (phaseOf(effectiveNow(profile)) !== "feedback") return { ok: false as const, error: "回访只在周一、周二开放。" };
   await ensureTable();
   const db = getDb();
   const rows = await db
     .select()
     .from(matches)
-    .where(and(eq(matches.state, "dating"), or(eq(matches.manProfileId, profileId), eq(matches.womanProfileId, profileId))))
+    .where(and(
+      profile.simDate ? or(eq(matches.state, "dating"), eq(matches.state, "confirmed")) : eq(matches.state, "dating"),
+      or(eq(matches.manProfileId, profile.id), eq(matches.womanProfileId, profile.id)),
+    ))
     .orderBy(desc(matches.id))
     .limit(1);
   const match = rows[0];
   if (!match) return { ok: false as const, error: "没有等待回访的约会。" };
   await setMatchFeedback(match.id, fb);
-  if (fb.score <= 2) await setPoolState(profileId, "review");
+  if (fb.score <= 2) await setPoolState(profile.id, "review");
   if (fb.met === 0) {
     await db.insert(payments).values({ matchId: match.id, amountCents: 0, status: "refund_pending", reason: "no-show" });
   }

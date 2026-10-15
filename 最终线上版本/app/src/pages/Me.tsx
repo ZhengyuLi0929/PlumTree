@@ -681,6 +681,7 @@ type MatchInfo = {
   notes: { id: number; fromMe: boolean; content: string; createdAt: string }[];
   blessingForMe: string | null;
   quotaLeft: number;
+  sim: { date: string; label: string; dow: number } | null;
 };
 
 const MATCH_STATE_TEXT: Record<string, string> = {
@@ -705,8 +706,11 @@ function MatchmakerLive() {
     toastTimer.current = setTimeout(() => setToast(""), 2500);
   };
 
+  const simNext = trpc.responses.memberSimNextDay.useMutation();
+  const simReset = trpc.responses.memberSimReset.useMutation();
+
   const data = info.data as MatchInfo | undefined;
-  const dow = cstDow();
+  const dow = data?.sim ? data.sim.dow : cstDow();
   const noteOpen = NOTE_OPEN_DOWS.includes(dow);
   const feedbackOpen = FEEDBACK_DOWS.includes(dow);
 
@@ -747,12 +751,65 @@ function MatchmakerLive() {
 
   return (
     <>
+      {/* 模拟器工具条（灰度内测） */}
+      {data?.sim && (
+        <div className="rounded-2xl p-4 mb-4 flex items-center justify-between gap-3 flex-wrap" style={{ background: "#121212" }}>
+          <p className="font-display text-sm" style={{ color: "#F3ECD2" }}>
+            ⏱ 模拟中 · 今天是{data.sim.label}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => simNext.mutate(undefined, { onSuccess: () => void utils.responses.memberMatchInfo.invalidate() })}
+              disabled={simNext.isPending}
+              className="text-xs font-semibold px-4 py-2 rounded-full disabled:opacity-50"
+              style={{ background: "#F97028", color: "#FFFDF6" }}
+            >
+              进入下一天 →
+            </button>
+            <button
+              type="button"
+              onClick={() => simReset.mutate(undefined, { onSuccess: () => { void utils.responses.memberMatchInfo.invalidate(); void utils.responses.memberInvites.invalidate(); void utils.responses.memberDateOptions.invalidate(); } })}
+              disabled={simReset.isPending}
+              className="text-xs font-semibold px-4 py-2 rounded-full disabled:opacity-50"
+              style={{ background: "rgba(255,253,246,0.15)", color: "#F3ECD2" }}
+            >
+              ↺ 重置到周二
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 模拟周二：配对还没影儿 */}
+      {data?.sim?.dow === 2 && (
+        <div className="rounded-3xl p-8 mb-4 text-center animate-pop" style={{ background: "#FFFDF6", boxShadow: "0 6px 24px rgba(18,18,18,0.06)" }}>
+          <div className="text-5xl mb-4">🌙</div>
+          <h2 className="font-display text-xl mb-2" style={{ color: "#121212" }}>配对还没影儿呢</h2>
+          <p className="text-sm leading-relaxed" style={{ color: "#7a7060" }}>
+            别急别急，月老周三晚上才上班发牌～<br />这周会有一个很棒的人空降给你，先把「参加本周约会」的开关确认好，养精蓄锐！
+          </p>
+        </div>
+      )}
+
+      {/* 周三首次亮相：月老推荐语（而不是对方简介） */}
+      {data?.sim?.dow === 3 && data.match && (
+        <div className="rounded-3xl p-6 mb-4 animate-pop" style={{ background: "linear-gradient(135deg, #F97028, #F489A3)", boxShadow: "0 8px 28px rgba(249,112,40,0.3)" }}>
+          <p className="font-display text-lg mb-1" style={{ color: "#FFFDF6" }}>🎉 配对出炉！</p>
+          {data.blessingForMe ? (
+            <p className="text-sm leading-relaxed" style={{ color: "rgba(255,253,246,0.95)" }}>{data.blessingForMe}</p>
+          ) : (
+            <p className="text-sm" style={{ color: "rgba(255,253,246,0.85)" }}>月老正在斟酌推荐语…刷新一下看看</p>
+          )}
+          <p className="text-xs mt-3" style={{ color: "rgba(255,253,246,0.75)" }}>（生产流程：配对先在后台等管理员「确认发送」，这一步在模拟里帮你跳过了）</p>
+        </div>
+      )}
+
       {/* 本周配对卡 */}
       <div className="rounded-3xl p-6 mb-4 animate-pop" style={{ background: "#FFFDF6", boxShadow: "0 6px 24px rgba(18,18,18,0.06)" }}>
         <h2 className="font-display text-lg mb-3" style={{ color: "#121212" }}>本周的同桌</h2>
         {info.isLoading && <p className="text-sm" style={{ color: "#a3988a" }}>加载中…</p>}
         {data && !data.match && <p className="text-sm" style={{ color: "#a3988a" }}>本周还没有匹配对象。周三晚上月老会给你介绍。</p>}
-        {data?.match && data.partner && (
+        {data?.match && data.partner && !(data.sim && data.sim.dow === 3) && (
           <>
             <div className="rounded-2xl p-4 mb-3" style={{ background: "linear-gradient(135deg, #FFF1E8, #FBEDF1)" }}>
               <p className="text-sm font-semibold mb-1" style={{ color: "#121212" }}>

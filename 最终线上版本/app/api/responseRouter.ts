@@ -1421,7 +1421,7 @@ export const responseRouter = createRouter({
   memberMatchInfo: publicQuery.query(async ({ ctx }) => {
     const profile = await requireMemberProfile(ctx.req);
     const { noteHistory } = await import("./lib/webMember");
-    return noteHistory(profile.id);
+    return noteHistory(profile);
   }),
 
   /** 给对方递小纸条（周三至周五，每天一条，内容安全过滤） */
@@ -1430,7 +1430,7 @@ export const responseRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const profile = await requireMemberProfile(ctx.req);
       const { sendNote } = await import("./lib/webMember");
-      return sendNote(profile.id, input.text);
+      return sendNote(profile, input.text);
     }),
 
   memberBotHistory: publicQuery.query(async ({ ctx }) => {
@@ -1460,14 +1460,14 @@ export const responseRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const profile = await requireMemberProfile(ctx.req);
       const { webFeedback } = await import("./lib/webMember");
-      return webFeedback(profile.id, input);
+      return webFeedback(profile, input);
     }),
 
   /** 约会安排：商家推荐（按双方偏好适配度）+ 时间交集 */
   memberDateOptions: publicQuery.query(async ({ ctx }) => {
     const profile = await requireMemberProfile(ctx.req);
     const { dateOptions } = await import("./lib/invites");
-    return dateOptions(profile.id);
+    return dateOptions(profile);
   }),
 
   /** 发送约会邀请（商户+时间，双方都确认见面后） */
@@ -1476,13 +1476,13 @@ export const responseRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const profile = await requireMemberProfile(ctx.req);
       const { sendInvite } = await import("./lib/invites");
-      return sendInvite(profile.id, input.merchantId, input.timeSlot);
+      return sendInvite(profile, input.merchantId, input.timeSlot);
     }),
 
   memberInvites: publicQuery.query(async ({ ctx }) => {
     const profile = await requireMemberProfile(ctx.req);
     const { listInvites } = await import("./lib/invites");
-    return listInvites(profile.id);
+    return listInvites(profile);
   }),
 
   /** 应答邀请：接受=锁定本周约会（其余 pending 作废）；拒绝=对方可重提 */
@@ -1493,6 +1493,44 @@ export const responseRouter = createRouter({
       const { answerInvite } = await import("./lib/invites");
       return answerInvite(profile.id, input.inviteId, input.accept);
     }),
+
+  /** 模拟器（灰度内测）：进入下一天 */
+  memberSimNextDay: publicQuery.mutation(async ({ ctx }) => {
+    const profile = await requireMemberProfile(ctx.req);
+    const today = profile.simDate ?? cstDayKey();
+    const next = shiftDayKey(today, 1);
+    await getDb().update(profiles).set({ simDate: next }).where(eq(profiles.id, profile.id));
+    return { ok: true, simDate: next };
+  }),
+
+  /** 模拟器重置：回到本周二，清空我这对的纸条/邀请/定案 */
+  memberSimReset: publicQuery.mutation(async ({ ctx }) => {
+    const profile = await requireMemberProfile(ctx.req);
+    await ensureTable();
+    const db = getDb();
+    const { webMessages, dateInvites } = await import("../db/schema");
+    const match = await db.select().from(matches).where(
+      and(eq(matches.weekKey, isoWeekKey()), or(eq(matches.manProfileId, profile.id), eq(matches.womanProfileId, profile.id))),
+    );
+    const m = match.sort((a, b) => b.id - a.id)[0];
+    if (m) {
+      const partnerId = m.manProfileId === profile.id ? m.womanProfileId : m.manProfileId;
+      await db.delete(webMessages).where(
+        or(
+          and(eq(webMessages.fromProfileId, profile.id)),
+          and(eq(webMessages.fromProfileId, partnerId)),
+        ),
+      );
+      await db.delete(dateInvites).where(eq(dateInvites.matchId, m.id));
+      await db.update(matches).set({ state: "confirmed", dateMerchantId: null, dateTimeSlot: null, met: null, score: null, willing: null }).where(eq(matches.id, m.id));
+    }
+    // 回到本周二（CST 日历日直接当 UTC 取星期几）
+    const todayCst = cstDayKey();
+    const dow = new Date(`${todayCst}T00:00:00Z`).getUTCDay();
+    const tue = shiftDayKey(todayCst, -((dow + 6) % 7) + 1);
+    await db.update(profiles).set({ simDate: tue }).where(eq(profiles.id, profile.id));
+    return { ok: true, simDate: tue };
+  }),
 
   exportOps: publicQuery.query(async ({ ctx }) => {
     await requireAdmin(ctx.req);

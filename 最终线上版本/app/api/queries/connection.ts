@@ -95,6 +95,7 @@ const DDL = [
     consent_at timestamp NULL,
     chat_facts text,
     date_prefs text,
+    sim_date varchar(10),
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS otp_codes (
@@ -295,6 +296,7 @@ export async function ensureTable() {
       `ALTER TABLE matches ADD COLUMN date_time_slot varchar(32)`,
       `ALTER TABLE merchants ADD COLUMN area varchar(32)`,
       `ALTER TABLE merchants ADD COLUMN category varchar(32)`,
+      `ALTER TABLE profiles ADD COLUMN sim_date varchar(10)`,
       `ALTER TABLE matches ADD COLUMN man_reply varchar(8)`,
       `ALTER TABLE matches ADD COLUMN woman_reply varchar(8)`,
       `ALTER TABLE matches ADD COLUMN man_note_days text`,

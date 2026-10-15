@@ -3,7 +3,9 @@
 import { and, desc, eq } from "drizzle-orm";
 import { dateInvites, matches, merchants, profiles } from "../../db/schema";
 import { ensureTable, getDb } from "../queries/connection";
-import { myActiveMatch } from "./webMember";
+import { myActiveMatch, simDow } from "./webMember";
+
+type ProfileRow = typeof profiles.$inferSelect;
 
 export type Prefs = {
   participate?: boolean;
@@ -53,15 +55,19 @@ export function recommendMerchants(mine: Prefs, theirs: Prefs, rows: (typeof mer
     .sort((a, b) => b.fit - a.fit);
 }
 
-export async function dateOptions(profileId: number) {
-  const match = await myActiveMatch(profileId);
+export async function dateOptions(profile: ProfileRow) {
+  // 模拟器里周五及以后（dow 5/6/0）才开放约会安排
+  if (profile.simDate && ![5, 6, 0].includes(simDow(profile)!)) {
+    return { ok: false as const, error: "周五确认见面之后，就可以来约时间地点啦" };
+  }
+  const match = await myActiveMatch(profile);
   if (!match || !["confirmed", "dating"].includes(match.state)) {
     return { ok: false as const, error: "双方都确认见面之后，就可以来约时间地点啦" };
   }
   await ensureTable();
   const db = getDb();
-  const partnerId = match.manProfileId === profileId ? match.womanProfileId : match.manProfileId;
-  const [me] = await db.select().from(profiles).where(eq(profiles.id, profileId));
+  const partnerId = match.manProfileId === profile.id ? match.womanProfileId : match.manProfileId;
+  const [me] = await db.select().from(profiles).where(eq(profiles.id, profile.id));
   const [them] = await db.select().from(profiles).where(eq(profiles.id, partnerId));
   const mine = parsePrefs(me?.datePrefs ?? null);
   const theirs = parsePrefs(them?.datePrefs ?? null);
@@ -75,8 +81,11 @@ export async function dateOptions(profileId: number) {
   };
 }
 
-export async function sendInvite(profileId: number, merchantId: number, timeSlot: string) {
-  const match = await myActiveMatch(profileId);
+export async function sendInvite(profile: ProfileRow, merchantId: number, timeSlot: string) {
+  if (profile.simDate && ![5, 6, 0].includes(simDow(profile)!)) {
+    return { ok: false as const, error: "周五确认见面之后才能发邀请" };
+  }
+  const match = await myActiveMatch(profile);
   if (!match || !["confirmed", "dating"].includes(match.state)) {
     return { ok: false as const, error: "双方都确认见面之后才能发邀请" };
   }
@@ -85,12 +94,12 @@ export async function sendInvite(profileId: number, merchantId: number, timeSlot
   const db = getDb();
   const [merch] = await db.select().from(merchants).where(eq(merchants.id, merchantId));
   if (!merch) return { ok: false as const, error: "商家不存在" };
-  await db.insert(dateInvites).values({ matchId: match.id, fromProfileId: profileId, merchantId, timeSlot });
+  await db.insert(dateInvites).values({ matchId: match.id, fromProfileId: profile.id, merchantId, timeSlot });
   return { ok: true as const };
 }
 
-export async function listInvites(profileId: number) {
-  const match = await myActiveMatch(profileId);
+export async function listInvites(profile: ProfileRow) {
+  const match = await myActiveMatch(profile);
   if (!match) return { matchId: null, invites: [] };
   await ensureTable();
   const db = getDb();
@@ -101,7 +110,7 @@ export async function listInvites(profileId: number) {
     matchId: match.id,
     invites: rows.map((r) => ({
       id: r.id,
-      fromMe: r.fromProfileId === profileId,
+      fromMe: r.fromProfileId === profile.id,
       merchant: nameOf.get(r.merchantId) ?? `#${r.merchantId}`,
       timeSlot: r.timeSlot,
       status: r.status,
