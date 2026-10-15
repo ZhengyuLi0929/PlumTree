@@ -174,6 +174,16 @@ function ArtText({ children, size = "1.4rem" }: { children: React.ReactNode; siz
   );
 }
 
+/* ---------- 纸飞机图标（小纸条发送按钮用，不是普通飞机） ---------- */
+function PaperPlane({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polygon points="22 2 15 22 11 13 2 9 22 2" fill="currentColor" stroke="none" />
+      <polyline points="22 2 11 13" stroke="#F97028" />
+    </svg>
+  );
+}
+
 /* ---------- 浮动提示（保存成功/失败 toast） ---------- */
 function Toast({ msg }: { msg: string }) {
   if (!msg) return null;
@@ -578,7 +588,7 @@ function Desk({ data, onLogout, preview = false, beta = false }: { data: MeData;
                 borderColor: tab === t ? "#F97028" : "#E8DCC0",
               }}
             >
-              {t === "profile" ? "我的资料" : "月老"}
+              {t === "profile" ? "我的资料" : "本周同桌的TA"}
             </button>
           ))}
         </div>
@@ -663,7 +673,7 @@ function Desk({ data, onLogout, preview = false, beta = false }: { data: MeData;
   );
 }
 
-/* ---------- 月老 tab（beta）：本周配对 + 小纸条 + 月老对话 + 回访 ---------- */
+/* ---------- 本周同桌的TA tab（beta）：本周配对 + 小纸条 + 丘比特对话 + 回访 ---------- */
 function cstDow() {
   return new Date(Date.now() + 8 * 3600 * 1000).getUTCDay(); // 0=周日…6=周六
 }
@@ -676,8 +686,8 @@ function MatchmakerTab({ preview, name }: { preview: boolean; name: string }) {
 }
 
 type MatchInfo = {
-  match: { id: number; weekKey: string; state: string; reason: string | null } | null;
-  partner: { birthYear: number | null; city: string | null; job: string | null; height: number | null; mbti: string | null; intro: string | null } | null;
+  match: { id: number; weekKey: string; state: string; reason: string | null; myReply: string | null; partnerReply: string | null } | null;
+  partner: { birthYear: number | null; city: string | null; job: string | null; height: number | null; mbti: string | null; intro: string | null; gender: string | null; typeCode: string | null; photos: Photo[] } | null;
   notes: { id: number; fromMe: boolean; content: string; createdAt: string }[];
   blessingForMe: string | null;
   quotaLeft: number;
@@ -737,7 +747,7 @@ function MatchmakerLive() {
     setChatText("");
     botChat.mutate({ text }, {
       onSuccess: () => void utils.responses.memberBotHistory.invalidate(),
-      onError: () => flash("月老这会儿有点忙，等下再聊"),
+      onError: () => flash("丘比特这会儿有点忙，等下再聊"),
     });
   };
 
@@ -786,19 +796,19 @@ function MatchmakerLive() {
           <div className="text-5xl mb-4">🌙</div>
           <h2 className="font-display text-xl mb-2" style={{ color: "#121212" }}>配对还没影儿呢</h2>
           <p className="text-sm leading-relaxed" style={{ color: "#7a7060" }}>
-            别急别急，月老周三晚上才上班发牌～<br />这周会有一个很棒的人空降给你，先把「参加本周约会」的开关确认好，养精蓄锐！
+            别急别急，丘比特周三晚上才上班发牌～<br />这周会有一个很棒的人空降给你，先把「参加本周约会」的开关确认好，养精蓄锐！
           </p>
         </div>
       )}
 
-      {/* 周三首次亮相：月老推荐语（而不是对方简介） */}
+      {/* 周三首次亮相：丘比特推荐语（而不是对方简介） */}
       {data?.sim?.dow === 3 && data.match && (
         <div className="rounded-3xl p-6 mb-4 animate-pop" style={{ background: "linear-gradient(135deg, #F97028, #F489A3)", boxShadow: "0 8px 28px rgba(249,112,40,0.3)" }}>
           <p className="font-display text-lg mb-1" style={{ color: "#FFFDF6" }}>🎉 配对出炉！</p>
           {data.blessingForMe ? (
             <p className="text-sm leading-relaxed" style={{ color: "rgba(255,253,246,0.95)" }}>{data.blessingForMe}</p>
           ) : (
-            <p className="text-sm" style={{ color: "rgba(255,253,246,0.85)" }}>月老正在斟酌推荐语…刷新一下看看</p>
+            <p className="text-sm" style={{ color: "rgba(255,253,246,0.85)" }}>丘比特正在斟酌推荐语…刷新一下看看</p>
           )}
           <p className="text-xs mt-3" style={{ color: "rgba(255,253,246,0.75)" }}>（生产流程：配对先在后台等管理员「确认发送」，这一步在模拟里帮你跳过了）</p>
         </div>
@@ -808,34 +818,86 @@ function MatchmakerLive() {
       <div className="rounded-3xl p-6 mb-4 animate-pop" style={{ background: "#FFFDF6", boxShadow: "0 6px 24px rgba(18,18,18,0.06)" }}>
         <h2 className="font-display text-lg mb-3" style={{ color: "#121212" }}>本周的同桌</h2>
         {info.isLoading && <p className="text-sm" style={{ color: "#a3988a" }}>加载中…</p>}
-        {data && !data.match && <p className="text-sm" style={{ color: "#a3988a" }}>本周还没有匹配对象。周三晚上月老会给你介绍。</p>}
-        {data?.match && data.partner && !(data.sim && data.sim.dow === 3) && (
-          <>
-            <div className="rounded-2xl p-4 mb-3" style={{ background: "linear-gradient(135deg, #FFF1E8, #FBEDF1)" }}>
-              <p className="text-sm font-semibold mb-1" style={{ color: "#121212" }}>
-                {[
-                  data.partner.birthYear ? `${data.partner.birthYear} 年生` : "",
-                  data.partner.city,
-                  data.partner.job,
-                  data.partner.height ? `${data.partner.height}cm` : "",
-                  data.partner.mbti,
-                ].filter(Boolean).join(" · ")}
-                <span className="text-xs font-normal ml-2" style={{ color: "#F97028" }}>{MATCH_STATE_TEXT[data.match.state] ?? data.match.state}</span>
-              </p>
-              {data.partner.intro && <p className="text-xs leading-relaxed mt-1" style={{ color: "#5a5347" }}>{data.partner.intro}</p>}
-            </div>
-            {data.blessingForMe && (
-              <div className="rounded-2xl p-4" style={{ background: "#FBF3E3" }}>
-                <p className="font-display text-sm mb-1" style={{ color: "#F97028" }}>月老悄悄话</p>
-                <p className="text-sm leading-relaxed" style={{ color: "#3d3830" }}>{data.blessingForMe}</p>
+        {data && !data.match && <p className="text-sm" style={{ color: "#a3988a" }}>本周还没有匹配对象。周三晚上丘比特会给你介绍。</p>}
+        {data?.match && data.partner && (() => {
+          // 周三、周四锁定：照片和介绍要到周五才解锁，先靠小纸条聊天
+          const locked = [3, 4].includes(dow);
+          const photo = data.partner!.photos[0];
+          if (locked) {
+            return (
+              <div className="relative rounded-2xl overflow-hidden" style={{ background: "#F3ECD2" }}>
+                {photo ? (
+                  <img src={photo.url} alt="" className="w-full h-56 object-cover" style={{ filter: "blur(20px)", transform: "scale(1.15)" }} />
+                ) : (
+                  <div className="w-full h-40" style={{ background: "linear-gradient(135deg, #E8DCC0, #F3ECD2)" }} />
+                )}
+                <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center" style={{ background: "rgba(18,18,18,0.35)" }}>
+                  <span className="text-4xl mb-2">🔒</span>
+                  <p className="font-display text-base" style={{ color: "#FFFDF6" }}>本周同桌的照片和介绍待解锁</p>
+                  <p className="text-xs mt-1.5 leading-relaxed" style={{ color: "rgba(255,253,246,0.85)" }}>
+                    先递张小纸条聊聊天吧，周五就揭晓 TA 的照片和自我介绍～
+                  </p>
+                </div>
               </div>
-            )}
-          </>
-        )}
+            );
+          }
+          const partnerType = data.partner!.typeCode && TYPES[data.partner!.typeCode] ? TYPES[data.partner!.typeCode] : null;
+          const partnerGender = data.partner!.gender ?? "女";
+          return (
+            <>
+              {/* 照片框：统一设计。有照片显示照片；没照片显示人格 avatar，底部标注 */}
+              {data.partner!.photos.length > 0 ? (
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  {data.partner!.photos.slice(0, 3).map((ph) => (
+                    <img key={ph.id} src={ph.url} alt="" className="w-full aspect-square object-cover rounded-2xl" style={{ background: "#F3ECD2" }} />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl overflow-hidden mb-3" style={{ background: "#FBF3E3" }}>
+                  <div className="flex items-center justify-center pt-5 pb-3">
+                    {partnerType ? (
+                      <img src={getAvatar(partnerType, partnerGender)} alt="" className="w-28 h-28 rounded-3xl object-cover" style={{ background: "#F3ECD2" }} />
+                    ) : (
+                      <span className="text-5xl">🫣</span>
+                    )}
+                  </div>
+                  <p className="text-center text-xs pb-3" style={{ color: "#a3988a" }}>很遗憾，该用户暂时没有上传照片哦～</p>
+                </div>
+              )}
+              <div className="rounded-2xl p-4 mb-3" style={{ background: "linear-gradient(135deg, #FFF1E8, #FBEDF1)" }}>
+                {/* 着重展示爱情人格四字母 */}
+                {partnerType && (
+                  <p className="mb-1.5">
+                    <span className="font-display text-xl" style={{ color: "#F97028" }}>{getMeme(partnerType, partnerGender)}</span>
+                    {"　"}
+                    <ArtText size="1.8rem">{partnerType.code}</ArtText>
+                  </p>
+                )}
+                <p className="text-sm font-semibold mb-1" style={{ color: "#121212" }}>
+                  {[
+                    data.partner!.birthYear ? `${data.partner!.birthYear} 年生` : "",
+                    data.partner!.city,
+                    data.partner!.job,
+                    data.partner!.height ? `${data.partner!.height}cm` : "",
+                    data.partner!.mbti,
+                  ].filter(Boolean).join(" · ")}
+                  <span className="text-xs font-normal ml-2" style={{ color: "#F97028" }}>{MATCH_STATE_TEXT[data.match!.state] ?? data.match!.state}</span>
+                </p>
+                {data.partner!.intro && <p className="text-xs leading-relaxed mt-1" style={{ color: "#5a5347" }}>{data.partner!.intro}</p>}
+              </div>
+              {data.blessingForMe && !(data.sim && data.sim.dow === 3) && (
+                <div className="rounded-2xl p-4" style={{ background: "#FBF3E3" }}>
+                  <p className="font-display text-sm mb-1" style={{ color: "#F97028" }}>丘比特悄悄话</p>
+                  <p className="text-sm leading-relaxed" style={{ color: "#3d3830" }}>{data.blessingForMe}</p>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
 
-      {/* 约会安排（周五双方都确认后出现） */}
-      {data?.match && <DatePlanSection matchState={data.match.state} />}
+      {/* 约会安排（周五做见面确认；双方都想见之后安排时间地点） */}
+      {data?.match && <DatePlanSection match={data.match} dow={dow} />}
 
       {/* 小纸条 */}
       <div className="rounded-3xl p-6 mb-4 animate-pop" style={{ background: "#FFFDF6", boxShadow: "0 6px 24px rgba(18,18,18,0.06)" }}>
@@ -869,10 +931,13 @@ function MatchmakerLive() {
                     type="button"
                     onClick={submitNote}
                     disabled={sendNote.isPending || !note.trim()}
-                    className="font-display text-sm px-5 rounded-full disabled:opacity-50"
+                    className="font-display text-sm px-5 rounded-full disabled:opacity-50 transition-all hover:scale-105"
                     style={{ background: "#F97028", color: "#FFFDF6" }}
+                    aria-label="递出小纸条"
                   >
-                    递出去
+                    {sendNote.isPending ? "…" : (
+                      <span className="inline-flex items-center gap-1.5"><PaperPlane />飞出去</span>
+                    )}
                   </button>
                 </div>
               ) : (
@@ -887,26 +952,51 @@ function MatchmakerLive() {
         )}
       </div>
 
-      {/* 月老对话 */}
+      {/* 丘比特对话 */}
       <div className="rounded-3xl p-6 mb-4 animate-pop" style={{ background: "#FFFDF6", boxShadow: "0 6px 24px rgba(18,18,18,0.06)" }}>
-        <h2 className="font-display text-lg mb-3" style={{ color: "#121212" }}>和月老聊聊</h2>
+        <div className="flex items-center gap-3 mb-3">
+          <img src="/cupid/preview-b09934.png" alt="丘比特" className="w-11 h-11 rounded-full object-cover" style={{ background: "#FBF3E3", border: "2px solid #F3ECD2" }} />
+          <div>
+            <h2 className="font-display text-lg" style={{ color: "#121212" }}>和丘比特聊聊</h2>
+            <p className="text-xs" style={{ color: "#a3988a" }}>你说的每一句话，丘比特都会记进小本本，帮你越配越准</p>
+          </div>
+        </div>
         <div className="flex flex-col gap-2 mb-3 max-h-64 overflow-auto">
-          {(botHistory.data ?? []).length === 0 && (
-            <p className="text-sm" style={{ color: "#a3988a" }}>还没有对话。说说你想找什么样的人，或者最近的心情。</p>
-          )}
-          {(botHistory.data ?? []).map((m) => (
-            <div key={m.id} className={`text-sm rounded-2xl px-4 py-2.5 max-w-[85%] leading-relaxed ${m.fromMe ? "self-end" : "self-start"}`}
-              style={{ background: m.fromMe ? "#F97028" : "#F3ECD2", color: m.fromMe ? "#FFFDF6" : "#121212" }}>
-              {m.content}
+          {(botHistory.data ?? []).length === 0 && !botChat.isPending && (
+            <div className="flex items-end gap-2 self-start max-w-[90%]">
+              <img src="/cupid/preview-b09934.png" alt="" className="w-8 h-8 rounded-full object-cover shrink-0" style={{ background: "#FBF3E3" }} />
+              <div className="text-sm rounded-2xl rounded-bl-sm px-4 py-2.5 leading-relaxed" style={{ background: "#F3ECD2", color: "#121212" }}>
+                嗨呀，我是丘比特 🏹 专门管你这周的爱情运势！最近有什么想倾诉的吗？心动瞬间、理想型、感情小烦恼……统统可以跟我说，我超会保密的！
+              </div>
             </div>
-          ))}
-          {botChat.isPending && <p className="text-xs" style={{ color: "#a3988a" }}>月老正在输入…</p>}
+          )}
+          {(botHistory.data ?? []).map((m) =>
+            m.fromMe ? (
+              <div key={m.id} className="text-sm rounded-2xl rounded-br-sm px-4 py-2.5 max-w-[85%] leading-relaxed self-end"
+                style={{ background: "#F97028", color: "#FFFDF6" }}>
+                {m.content}
+              </div>
+            ) : (
+              <div key={m.id} className="flex items-end gap-2 self-start max-w-[90%]">
+                <img src="/cupid/preview-b09934.png" alt="" className="w-8 h-8 rounded-full object-cover shrink-0" style={{ background: "#FBF3E3" }} />
+                <div className="text-sm rounded-2xl rounded-bl-sm px-4 py-2.5 leading-relaxed" style={{ background: "#F3ECD2", color: "#121212" }}>
+                  {m.content}
+                </div>
+              </div>
+            ),
+          )}
+          {botChat.isPending && (
+            <div className="flex items-end gap-2 self-start">
+              <img src="/cupid/preview-b09934.png" alt="" className="w-8 h-8 rounded-full object-cover shrink-0" style={{ background: "#FBF3E3" }} />
+              <p className="text-xs" style={{ color: "#a3988a" }}>丘比特正在输入…</p>
+            </div>
+          )}
         </div>
         <div className="flex gap-2">
           <input
             className="flex-1 px-4 py-3 rounded-xl text-sm outline-none"
             style={{ background: "#F3ECD2", color: "#121212" }}
-            placeholder="和月老说点什么…"
+            placeholder="和丘比特说点什么…"
             value={chatText}
             maxLength={500}
             onChange={(e) => setChatText(e.target.value)}
@@ -983,12 +1073,13 @@ type DateOpts =
   | { ok: true; matchId: number; locked: { merchantId: number; timeSlot: string } | null; merchants: MerchantOpt[]; time: { slots: string[]; noOverlap: boolean } };
 type InviteRow = { id: number; fromMe: boolean; merchant: string; timeSlot: string; status: string };
 
-function DatePlanSection({ matchState }: { matchState: string }) {
+function DatePlanSection({ match, dow }: { match: NonNullable<MatchInfo["match"]>; dow: number }) {
   const utils = trpc.useUtils();
   const optsQ = trpc.responses.memberDateOptions.useQuery(undefined, { refetchInterval: 15000 });
   const invitesQ = trpc.responses.memberInvites.useQuery(undefined, { refetchInterval: 15000 });
   const send = trpc.responses.memberSendInvite.useMutation();
   const answer = trpc.responses.memberAnswerInvite.useMutation();
+  const confirmDate = trpc.responses.memberConfirmDate.useMutation();
   const [merchantId, setMerchantId] = useState<number | null>(null);
   const [timeSlot, setTimeSlot] = useState("");
   const [confirmed, setConfirmed] = useState(false);
@@ -1000,12 +1091,28 @@ function DatePlanSection({ matchState }: { matchState: string }) {
     toastTimer.current = setTimeout(() => setToast(""), 3000);
   };
 
-  if (!["confirmed", "dating"].includes(matchState)) return null;
+  const planningOpen = ["confirmed", "dating"].includes(match.state);
+  // 周五（含周末）才做见面确认；在那之前这张卡不出现
+  const confirmOpen = !planningOpen && [5, 6, 0].includes(dow);
+  if (!planningOpen && !confirmOpen) return null;
+
+  const doConfirm = (want: boolean) => {
+    confirmDate.mutate({ want }, {
+      onSuccess: () => {
+        flash(want ? "好耶！心意已记下，等 TA 也点头就安排起来～" : "没关系，这周先好好休息，下周再战！");
+        void utils.responses.memberMatchInfo.invalidate();
+        void utils.responses.memberDateOptions.invalidate();
+      },
+      onError: (e) => flash(trpcErrorMessage(e, "操作失败")),
+    });
+  };
   const opts = optsQ.data as DateOpts | undefined;
   const invites = (invitesQ.data?.invites ?? []) as InviteRow[];
   const lockedMerchant = opts?.ok && opts.locked ? (opts.merchants.find((m) => m.id === opts.locked!.merchantId)?.name ?? "定好的商家") : null;
   const incoming = invites.find((i) => !i.fromMe && i.status === "pending");
   const outgoing = invites.find((i) => i.fromMe && i.status === "pending");
+  const rejectedOut = [...invites].reverse().find((i) => i.fromMe && i.status === "rejected");
+  const weekend = [6, 0].includes(dow);
 
   const doSend = () => {
     if (!merchantId || !timeSlot) return flash("先选好商家和时间哦");
@@ -1038,8 +1145,55 @@ function DatePlanSection({ matchState }: { matchState: string }) {
 
   return (
     <div className="rounded-3xl p-6 mb-4 animate-pop" style={{ background: "#FFFDF6", boxShadow: "0 6px 24px rgba(18,18,18,0.06)" }}>
-      <h2 className="font-display text-lg mb-1" style={{ color: "#121212" }}>约会安排</h2>
-      <p className="text-xs mb-3" style={{ color: "#a3988a" }}>你们都点头啦！现在就差把时间和地点定下来。</p>
+      <h2 className="font-display text-lg mb-3" style={{ color: "#121212" }}>约会安排</h2>
+
+      {/* 周五见面确认：还没定见不见之前，先不问时间地点 */}
+      {!planningOpen && match.state === "declined" && (
+        <p className="text-sm leading-relaxed" style={{ color: "#7a7060" }}>
+          {match.myReply === "no"
+            ? "你这周选择了不见 TA，没关系，好好休息，下周再战！"
+            : "TA 这周暂时不方便见面，别灰心，下周丘比特再帮你物色～"}
+        </p>
+      )}
+      {!planningOpen && match.state !== "declined" && (
+        match.myReply === "yes" ? (
+          <div className="rounded-2xl p-4" style={{ background: "#FBF3E3" }}>
+            <p className="text-sm" style={{ color: "#3d3830" }}>
+              {[6, 0].includes(dow)
+                ? "你已经举小手啦 ✋ 不过都周末了 TA 还没表态，这周可能赶不上啦——别灰心，下周丘比特继续帮你安排～"
+                : "你已经举小手啦 ✋ 等 TA 也点头，就可以一起挑时间地点咯～"}
+            </p>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm mb-3" style={{ color: "#5a5347" }}>聊了几天啦，本周想和 TA 见一面吗？</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => doConfirm(true)}
+                disabled={confirmDate.isPending}
+                className="flex-1 font-display text-sm py-3 rounded-full disabled:opacity-50 transition-all hover:scale-[1.02]"
+                style={{ background: "#F97028", color: "#FFFDF6" }}
+              >
+                我想与对方见面 💘
+              </button>
+              <button
+                type="button"
+                onClick={() => doConfirm(false)}
+                disabled={confirmDate.isPending}
+                className="flex-1 font-display text-sm py-3 rounded-full disabled:opacity-50"
+                style={{ background: "#FFFDF6", color: "#7a7060", border: "2px solid #E8DCC0" }}
+              >
+                本周不想见TA
+              </button>
+            </div>
+          </>
+        )
+      )}
+
+      {planningOpen && (
+      <>
+      <p className="text-xs mb-3" style={{ color: "#a3988a" }}>都想见面！挑个地方、选个时间，把约会定下来。</p>
 
       {/* 已定案 */}
       {opts?.ok && opts.locked && (
@@ -1073,7 +1227,19 @@ function DatePlanSection({ matchState }: { matchState: string }) {
       {/* 等待对方 */}
       {opts?.ok && !opts.locked && outgoing && (
         <div className="rounded-2xl p-4 mb-3" style={{ background: "#FBF3E3" }}>
-          <p className="text-sm" style={{ color: "#3d3830" }}>你的邀请（{outgoing.timeSlot} · {outgoing.merchant}）正在等 TA 回复～</p>
+          <p className="text-sm" style={{ color: "#3d3830" }}>
+            你的邀请（{outgoing.timeSlot} · {outgoing.merchant}）正在等 TA 回复～
+            {weekend && <span style={{ color: "#9a3412" }}> 都周末啦 TA 还没回，时间有点紧，做好这周转下周的心理准备哦。</span>}
+          </p>
+        </div>
+      )}
+
+      {/* TA 婉拒了我的邀请 */}
+      {opts?.ok && !opts.locked && !outgoing && !incoming && rejectedOut && (
+        <div className="rounded-2xl p-4 mb-3" style={{ background: "#FDEAE0" }}>
+          <p className="text-sm" style={{ color: "#9a3412" }}>
+            TA 婉拒了你上一版邀请（{rejectedOut.timeSlot} · {rejectedOut.merchant}）。别气馁，换个时间或地方再发一版～
+          </p>
         </div>
       )}
 
@@ -1135,12 +1301,14 @@ function DatePlanSection({ matchState }: { matchState: string }) {
       {optsQ.data && !(optsQ.data as DateOpts).ok && (
         <p className="text-sm" style={{ color: "#a3988a" }}>{(optsQ.data as { error?: string }).error}</p>
       )}
+      </>
+      )}
       <Toast msg={toast} />
     </div>
   );
 }
 
-/** 预览模式下的月老 tab：静态假数据，看个样子 */
+/** 预览模式下的 beta tab：静态假数据，看个样子 */
 function MatchmakerPreview({ name }: { name: string }) {
   return (
     <>
@@ -1153,13 +1321,13 @@ function MatchmakerPreview({ name }: { name: string }) {
           <p className="text-xs leading-relaxed mt-1" style={{ color: "#5a5347" }}>周末爬山、做饭、看纪录片，最近在学陶艺。</p>
         </div>
         <div className="rounded-2xl p-4" style={{ background: "#FBF3E3" }}>
-          <p className="font-display text-sm mb-1" style={{ color: "#F97028" }}>月老悄悄话</p>
+          <p className="font-display text-sm mb-1" style={{ color: "#F97028" }}>丘比特悄悄话</p>
           <p className="text-sm leading-relaxed" style={{ color: "#3d3830" }}>
             {name}，听我说！TA 是那个会把「随便吃点」做成四菜一汤的人。你爱看展 TA 爱拍照，你俩站一块就是周末海报本人。别犹豫了，周三给 TA 递张纸条吧！
           </p>
         </div>
       </div>
-      {["递小纸条（周三至周五，每天一条）", "和月老聊聊", "约会回访（周一、周二）"].map((t) => (
+      {["递小纸条（周三至周五，每天一条）", "和丘比特聊聊", "约会回访（周一、周二）"].map((t) => (
         <div key={t} className="rounded-3xl p-6 mb-4" style={{ background: "#FFFDF6" }}>
           <h2 className="font-display text-lg" style={{ color: "#121212" }}>{t.split("（")[0]}</h2>
           <p className="text-xs mt-1" style={{ color: "#a3988a" }}>预览模式，登录后这里是真的能聊的。</p>
@@ -1378,7 +1546,7 @@ function DatePrefsCard({ raw, participate: initialParticipate, preview }: { raw:
   return (
     <div className="rounded-3xl p-6 mb-4" style={{ background: "#FFFDF6" }}>
       <h2 className="font-display text-lg mb-1" style={{ color: "#121212" }}>本周约会倾向</h2>
-      <p className="text-xs mb-4" style={{ color: "#a3988a" }}>告诉月老你这周想去哪、想做什么、什么时候有空。</p>
+      <p className="text-xs mb-4" style={{ color: "#a3988a" }}>告诉丘比特你这周想去哪、想做什么、什么时候有空。</p>
       {/* 参加开关：默认不参加，手动打开才进本周匹配；下周自动回到不参加 */}
       <div
         className="flex items-center justify-between rounded-2xl p-4 mb-4"

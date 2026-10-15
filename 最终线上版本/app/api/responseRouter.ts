@@ -1017,7 +1017,7 @@ export const responseRouter = createRouter({
         rightSession: input.rightSession,
         note: input.note || null,
       });
-      // 同步进 matches 表（/me 月老 tab、传话、约会邀请都读 matches）：
+      // 同步进 matches 表（/me 本周同桌的TA tab、传话、约会邀请都读 matches）：
       // 先删掉这两人本周在 matches 里的 pending 记录，再插手动配对
       const profRows = await db.select().from(profiles);
       const bySession = new Map(profRows.map((p) => [p.sessionId, p]));
@@ -1400,7 +1400,7 @@ export const responseRouter = createRouter({
       return { ok: true };
     }),
 
-  /** 生成/查看月老推荐语（AI 生成，落库缓存；regenerate=true 重新生成） */
+  /** 生成/查看丘比特推荐语（AI 生成，落库缓存；regenerate=true 重新生成） */
   pairBlessing: publicQuery
     .input(z.object({ matchId: z.number().int().positive(), regenerate: z.boolean().optional() }))
     .mutation(async ({ input, ctx }) => {
@@ -1415,7 +1415,7 @@ export const responseRouter = createRouter({
       }
     }),
 
-  // ===== 会员网页互动（/me 月老 tab） =====
+  // ===== 会员网页互动（/me 本周同桌的TA tab） =====
 
   /** 我本周的配对 + 对方卡片 + 小纸条记录 + 今日剩余额度 + 给我的推荐语 */
   memberMatchInfo: publicQuery.query(async ({ ctx }) => {
@@ -1439,7 +1439,7 @@ export const responseRouter = createRouter({
     return botHistoryWeb(profile.id);
   }),
 
-  /** 和月老网页对话（历史与需求沉淀进 profiles.chat_facts，与企微通道共用） */
+  /** 和丘比特网页对话（历史与需求沉淀进 profiles.chat_facts，与企微通道共用） */
   memberBotChat: publicQuery
     .input(z.object({ text: z.string().trim().min(1).max(500) }))
     .mutation(async ({ input, ctx }) => {
@@ -1461,6 +1461,25 @@ export const responseRouter = createRouter({
       const profile = await requireMemberProfile(ctx.req);
       const { webFeedback } = await import("./lib/webMember");
       return webFeedback(profile, input);
+    }),
+
+  /** 周五见面确认（网页版）：双方都想见 → confirmed；一方不想见 → declined */
+  memberConfirmDate: publicQuery
+    .input(z.object({ want: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      const profile = await requireMemberProfile(ctx.req);
+      await ensureTable();
+      const db = getDb();
+      const { myActiveMatch } = await import("./lib/webMember");
+      const match = await myActiveMatch(profile);
+      if (!match) fail("NOT_FOUND", "本周还没有匹配对象");
+      if (!["sent", "chatting", "confirmed", "declined"].includes(match.state)) fail("PRECONDITION_FAILED", "当前状态不能确认");
+      const isMan = match.manProfileId === profile.id;
+      const manReply = isMan ? (input.want ? "yes" : "no") : match.manReply;
+      const womanReply = isMan ? match.womanReply : input.want ? "yes" : "no";
+      const state = manReply === "yes" && womanReply === "yes" ? "confirmed" : manReply === "no" || womanReply === "no" ? "declined" : match.state;
+      await db.update(matches).set({ manReply, womanReply, state }).where(eq(matches.id, match.id));
+      return { ok: true, state };
     }),
 
   /** 约会安排：商家推荐（按双方偏好适配度）+ 时间交集 */
@@ -1522,7 +1541,8 @@ export const responseRouter = createRouter({
         ),
       );
       await db.delete(dateInvites).where(eq(dateInvites.matchId, m.id));
-      await db.update(matches).set({ state: "confirmed", dateMerchantId: null, dateTimeSlot: null, met: null, score: null, willing: null }).where(eq(matches.id, m.id));
+      // 回到「已空投」的初始态：见面确认、约会定案、回访全部清零（推荐语保留，重新生成很贵）
+      await db.update(matches).set({ state: "sent", manReply: null, womanReply: null, dateMerchantId: null, dateTimeSlot: null, met: null, score: null, willing: null }).where(eq(matches.id, m.id));
     }
     // 回到本周二（CST 日历日直接当 UTC 取星期几）
     const todayCst = cstDayKey();

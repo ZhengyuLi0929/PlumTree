@@ -108,9 +108,25 @@ export async function noteHistory(profile: ProfileRow) {
       ),
     )
     .orderBy(webMessages.id);
+  const { listPhotos } = await import("./photos");
+  const partnerPhotos = partner ? await listPhotos(partner.id) : [];
+  // 对方的爱情人格四字母：取该 session 最新一次测验结果
+  let partnerTypeCode: string | null = null;
+  if (partner) {
+    const { responsesV3 } = await import("../../db/schema");
+    const quizRows = await db.select().from(responsesV3).where(eq(responsesV3.sessionId, partner.sessionId));
+    partnerTypeCode = quizRows.sort((a, b) => b.id - a.id)[0]?.typeCode ?? null;
+  }
   return {
-    match: { id: match.id, weekKey: match.weekKey, state: match.state, reason: match.reason },
-    partner: partner ? maskedCard(partner) : null,
+    match: {
+      id: match.id,
+      weekKey: match.weekKey,
+      state: match.state,
+      reason: match.reason,
+      myReply: isMan ? match.manReply : match.womanReply,
+      partnerReply: isMan ? match.womanReply : match.manReply,
+    },
+    partner: partner ? { ...maskedCard(partner), gender: partner.gender, typeCode: partnerTypeCode, photos: partnerPhotos } : null,
     notes: rows.map((r) => ({ id: r.id, fromMe: r.fromProfileId === profile.id, content: r.content, createdAt: r.createdAt })),
     blessingForMe,
     quotaLeft: await noteQuotaLeft(profile),
