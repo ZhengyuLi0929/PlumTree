@@ -1415,6 +1415,39 @@ export const responseRouter = createRouter({
       }
     }),
 
+  /** 匹配卡片数据：一对配对双方的可展示资料（照片/人格/介绍/理想型/最看重），admin 导出卡片用 */
+  matchCardData: publicQuery
+    .input(z.object({ matchId: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      await requireAdmin(ctx.req);
+      await ensureTable();
+      const db = getDb();
+      const [m] = await db.select().from(matches).where(eq(matches.id, input.matchId));
+      if (!m) fail("NOT_FOUND", "配对不存在");
+      const { listPhotos } = await import("./lib/photos");
+      const cardOf = async (pid: number) => {
+        const [p] = await db.select().from(profiles).where(eq(profiles.id, pid));
+        if (!p) return null;
+        const quizRows = await db.select().from(responsesV3).where(eq(responsesV3.sessionId, p.sessionId));
+        const typeCode = quizRows.sort((a, b) => b.id - a.id)[0]?.typeCode ?? null;
+        return {
+          name: p.name,
+          gender: p.gender,
+          birthYear: p.birthYear,
+          city: p.city,
+          job: p.job,
+          height: p.height,
+          mbti: p.mbti,
+          intro: p.intro,
+          expectation: p.expectation,
+          value: p.value,
+          typeCode,
+          photos: await listPhotos(p.id),
+        };
+      };
+      return { weekKey: m.weekKey, state: m.state, man: await cardOf(m.manProfileId), woman: await cardOf(m.womanProfileId) };
+    }),
+
   // ===== 会员网页互动（/me 本周同桌的TA tab） =====
 
   /** 我本周的配对 + 对方卡片 + 小纸条记录 + 今日剩余额度 + 给我的推荐语 */

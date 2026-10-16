@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { trpc } from "@/providers/trpc";
 import { trpcErrorMessage } from "@/lib/errors";
 import { TYPES, getMeme } from "@/data/types";
 import { DIM_META, LOVE_LANGUAGES, type LangKey } from "@/data/questions";
 import { computeScoresFinal } from "@/data/questions-final";
+import { cardPreviewUrl, downloadCardHtml, downloadCardImage, type CardPerson } from "@/lib/matchCard";
 
 type User = {
   sessionId: string;
@@ -480,6 +481,7 @@ function AirdropPanel() {
   const [err, setErr] = useState("");
   const [previewFor, setPreviewFor] = useState<number | null>(null);
   const [blessingFor, setBlessingFor] = useState<{ id: number; man: string; woman: string } | null>(null);
+  const [cardFor, setCardFor] = useState<{ id: number; man: string; woman: string } | null>(null);
 
   const run = async (p: Promise<unknown>) => {
     setErr("");
@@ -533,6 +535,13 @@ function AirdropPanel() {
                 >
                   推荐语
                 </button>
+                <button
+                  onClick={() => setCardFor(i)}
+                  className="text-xs px-3 py-2 rounded-full"
+                  style={{ background: "#FFFDF6", color: "#7a7060", border: "2px solid #E8DCC0" }}
+                >
+                  匹配卡片
+                </button>
                 {i.state === "pending_send" && (
                   <button
                     onClick={() => setPreviewFor(i.id)}
@@ -566,7 +575,102 @@ function AirdropPanel() {
           onClose={() => setBlessingFor(null)}
         />
       )}
+      {cardFor && (
+        <MatchCardDialog
+          matchId={cardFor.id}
+          man={cardFor.man}
+          woman={cardFor.woman}
+          onClose={() => setCardFor(null)}
+        />
+      )}
     </>
+  );
+}
+
+/** 匹配卡片弹窗：复刻 /me「本周的同桌」卡片（无推荐语，增加理想型/最看重），可下载 PNG/JPEG/HTML */
+function MatchCardDialog({ matchId, man, woman, onClose }: { matchId: number; man: string; woman: string; onClose: () => void }) {
+  const q = trpc.responses.matchCardData.useQuery({ matchId });
+  const [side, setSide] = useState<"man" | "woman">("woman");
+  const [img, setImg] = useState("");
+  const [busy, setBusy] = useState("");
+  const [err, setErr] = useState("");
+
+  const person = (q.data?.[side] ?? null) as CardPerson | null;
+
+  // 切换人或数据到达时重画预览
+  useEffect(() => {
+    setImg("");
+    if (!person) return;
+    let cancelled = false;
+    cardPreviewUrl(person)
+      .then((url) => { if (!cancelled) setImg(url); })
+      .catch(() => { if (!cancelled) setErr("卡片渲染失败"); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [person?.name, q.data]);
+
+  const dl = async (kind: "png" | "jpeg" | "html") => {
+    if (!person) return;
+    setErr("");
+    setBusy(kind);
+    try {
+      if (kind === "html") downloadCardHtml(person);
+      else await downloadCardImage(person, kind);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "下载失败");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(18,18,18,0.45)" }} onClick={onClose}>
+      <div className="w-full max-w-xl max-h-[90vh] overflow-auto rounded-3xl p-6" style={{ background: "#FFFDF6" }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-start mb-3">
+          <h2 className="font-display text-xl" style={{ color: "#121212" }}>{man} × {woman} · 匹配卡片</h2>
+          <button onClick={onClose} className="text-sm px-3 py-1 rounded-full" style={{ background: "#FBF3E3", color: "#7a7060" }}>关闭</button>
+        </div>
+        <div className="flex gap-2 mb-4">
+          {([["woman", `${woman} 的卡片`], ["man", `${man} 的卡片`]] as const).map(([s, label]) => (
+            <button
+              key={s}
+              onClick={() => setSide(s)}
+              className="text-xs px-4 py-2 rounded-full font-semibold"
+              style={{
+                background: side === s ? "#F97028" : "#F3ECD2",
+                color: side === s ? "#FFFDF6" : "#5a5347",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {q.isLoading && <p className="text-sm" style={{ color: "#a3988a" }}>加载资料中…</p>}
+        {person && !img && !err && <p className="text-sm" style={{ color: "#a3988a" }}>正在画卡片…</p>}
+        {img && (
+          <img src={img} alt="匹配卡片预览" className="w-full rounded-2xl mb-4" style={{ border: "1px solid #F3ECD2" }} />
+        )}
+        {err && <p className="text-sm mb-2" style={{ color: "#9a3412" }}>{err}</p>}
+        {person && (
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => void dl("png")}
+              disabled={busy !== ""}
+              className="font-display text-sm px-6 py-2.5 rounded-full disabled:opacity-50"
+              style={{ background: "#F97028", color: "#FFFDF6" }}
+            >
+              {busy === "png" ? "导出中…" : "一键下载 PNG ↓"}
+            </button>
+            <button onClick={() => void dl("jpeg")} disabled={busy !== ""} className="text-sm px-4 py-2.5 rounded-full disabled:opacity-50" style={{ background: "#F3ECD2", color: "#5a5347" }}>
+              {busy === "jpeg" ? "导出中…" : "JPEG"}
+            </button>
+            <button onClick={() => void dl("html")} disabled={busy !== ""} className="text-sm px-4 py-2.5 rounded-full disabled:opacity-50" style={{ background: "#F3ECD2", color: "#5a5347" }}>
+              HTML（浏览器里可另存 PDF）
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1062,6 +1166,69 @@ function MatchPanel() {
   );
 }
 
+/** 照片灯箱：放大查看（滚轮/按钮缩放，拖拽平移）+ 下载原图 */
+function PhotoLightbox({ photo, name, onClose }: { photo: { id: number; url: string }; name: string; onClose: () => void }) {
+  const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const drag = useRef<{ x: number; y: number } | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const zoom = (delta: number) => setScale((s) => Math.min(4, Math.max(1, Math.round((s + delta) * 10) / 10)));
+  const doDownload = async () => {
+    setDownloading(true);
+    try {
+      const blob = await (await fetch(photo.url)).blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${name}_照片_${photo.id}.jpg`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex flex-col"
+      style={{ background: "rgba(18,18,18,0.85)" }}
+      onClick={onClose}
+      onWheel={(e) => { e.preventDefault(); zoom(e.deltaY < 0 ? 0.2 : -0.2); }}
+    >
+      <div className="flex items-center justify-between p-4" onClick={(e) => e.stopPropagation()}>
+        <p className="text-sm" style={{ color: "#F3ECD2" }}>{name} 的照片 · {Math.round(scale * 100)}%</p>
+        <div className="flex gap-2">
+          <button onClick={() => zoom(-0.5)} className="text-sm px-3 py-1.5 rounded-full" style={{ background: "rgba(255,253,246,0.15)", color: "#F3ECD2" }}>−</button>
+          <button onClick={() => zoom(0.5)} className="text-sm px-3 py-1.5 rounded-full" style={{ background: "rgba(255,253,246,0.15)", color: "#F3ECD2" }}>＋</button>
+          <button onClick={() => { setScale(1); setOffset({ x: 0, y: 0 }); }} className="text-sm px-3 py-1.5 rounded-full" style={{ background: "rgba(255,253,246,0.15)", color: "#F3ECD2" }}>重置</button>
+          <button onClick={() => void doDownload()} disabled={downloading} className="text-sm px-4 py-1.5 rounded-full disabled:opacity-50" style={{ background: "#F97028", color: "#FFFDF6" }}>
+            {downloading ? "下载中…" : "下载原图 ↓"}
+          </button>
+          <button onClick={onClose} className="text-sm px-3 py-1.5 rounded-full" style={{ background: "rgba(255,253,246,0.15)", color: "#F3ECD2" }}>关闭</button>
+        </div>
+      </div>
+      <div
+        className="flex-1 overflow-hidden flex items-center justify-center"
+        style={{ cursor: scale > 1 ? "grab" : "zoom-in" }}
+        onClick={(e) => { e.stopPropagation(); if (scale === 1) zoom(1); }}
+        onMouseDown={(e) => { drag.current = { x: e.clientX - offset.x, y: e.clientY - offset.y }; }}
+        onMouseMove={(e) => { if (drag.current && scale > 1) setOffset({ x: e.clientX - drag.current.x, y: e.clientY - drag.current.y }); }}
+        onMouseUp={() => { drag.current = null; }}
+        onMouseLeave={() => { drag.current = null; }}
+      >
+        <img
+          src={photo.url}
+          alt=""
+          draggable={false}
+          className="max-w-full max-h-full object-contain select-none"
+          style={{ transform: `scale(${scale}) translate(${offset.x / scale}px, ${offset.y / scale}px)`, transition: drag.current ? "none" : "transform 0.15s" }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function UserDialog({
   user, selected, onClose, onToggle,
 }: {
@@ -1073,6 +1240,7 @@ function UserDialog({
   const quiz = quizView(user);
   const detail = trpc.responses.userDetail.useQuery({ sessionId: user.sessionId });
   const d = detail.data;
+  const [zoomPhoto, setZoomPhoto] = useState<{ id: number; url: string } | null>(null);
   const dp = (d?.datePrefs ?? null) as { locations?: string[]; activities?: string[]; times?: string[]; customLocation?: string; customActivity?: string } | null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(18,18,18,0.45)" }} onClick={onClose}>
@@ -1082,14 +1250,21 @@ function UserDialog({
           <button onClick={onClose} className="text-sm px-3 py-1 rounded-full" style={{ background: "#FBF3E3", color: "#7a7060" }}>关闭</button>
         </div>
 
-        {/* 照片墙 */}
+        {/* 照片墙（点击放大，可下载原图） */}
         {d && d.photos.length > 0 && (
-          <div className="grid grid-cols-3 gap-2 mb-3">
-            {d.photos.map((p: { id: number; url: string }) => (
-              <img key={p.id} src={p.url} alt="" className="aspect-square rounded-2xl object-cover" style={{ background: "#F3ECD2" }} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-3 gap-2 mb-1">
+              {d.photos.map((p: { id: number; url: string }) => (
+                <button key={p.id} type="button" onClick={() => setZoomPhoto(p)} className="relative group aspect-square rounded-2xl overflow-hidden" style={{ background: "#F3ECD2" }} title="点击放大 / 下载">
+                  <img src={p.url} alt="" className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                  <span className="absolute bottom-1.5 right-1.5 text-xs px-2 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "rgba(18,18,18,0.55)", color: "#FFFDF6" }}>放大</span>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs mb-3" style={{ color: "#a3988a" }}>点照片可放大、下载原图</p>
+          </>
         )}
+        {zoomPhoto && <PhotoLightbox photo={zoomPhoto} name={user.name} onClose={() => setZoomPhoto(null)} />}
 
         <Row label="微信" value={user.wechat} />
         <Row label="手机" value={d?.profile.phone} />
