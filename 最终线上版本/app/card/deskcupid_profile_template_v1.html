@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Meet Cute — Editable Profile Card</title>
+<style>
+:root{--cream:#fff9f0;--paper:#fffcf7;--ink:#402d37;--muted:#8d7b80;--rose:#ff7e8f;--pink:#ffe1e5;--peach:#ffd4b5;--line:#e6cbd0;--yellow:#ffe6a2;--shadow:rgba(106,58,65,.13)}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:ui-rounded,"Arial Rounded MT Bold","PingFang SC","Microsoft Yahei",sans-serif;color:var(--ink)}body{background:var(--cream);background-image:radial-gradient(#eec8cf 1px, transparent 1px);background-size:24px 24px}
+.page{max-width:1150px;margin:auto;padding:36px 28px 70px}.top{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:35px}.brand{font-size:24px;font-weight:950;letter-spacing:-1.2px;display:flex;align-items:center;gap:8px}.heart{color:#ff7082;font-size:26px;transform:rotate(-12deg)}.top-note{border:1.5px solid var(--ink);border-radius:99px;padding:9px 17px;background:#fff;font-size:12px;letter-spacing:1.3px;font-weight:800;box-shadow:3px 3px 0 var(--ink)}.intro{text-align:center;margin:0 auto 29px}.eyebrow{color:#eb7585;font-size:12px;letter-spacing:3px;font-weight:900}.intro h1{font-family:Georgia,"Songti SC",serif;font-size:clamp(38px,5vw,64px);line-height:1.1;letter-spacing:-2px;margin:10px 0 12px}.intro p{font-size:14px;color:var(--muted);margin:0}
+.card{display:grid;grid-template-columns:35% 65%;background:var(--paper);border:2px solid var(--ink);border-radius:25px;box-shadow:10px 11px 0 #f4b4bc;overflow:hidden;min-height:565px}
+.photo-side{position:relative;min-height:530px;background:#f8c5c8;padding:15px;border-right:2px solid var(--ink)}.photo-wrap{height:100%;min-height:500px;border-radius:14px;overflow:hidden;position:relative;background:linear-gradient(140deg,#fce6dc,#e4abbd 75%);display:flex;align-items:center;justify-content:center}.photo-wrap img{display:block;width:100%;height:100%;object-fit:cover;position:absolute;inset:0}.placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:16px;color:#965b6e;padding:25px}.placeholder svg{width:116px;height:116px}.placeholder span{font-size:14px;font-weight:700;line-height:1.8}.photo-label{position:absolute;left:30px;bottom:31px;background:var(--yellow);padding:10px 19px;border:2px solid var(--ink);border-radius:99px;transform:rotate(-5deg);font-size:13px;font-weight:900;box-shadow:3px 3px 0 var(--ink)}.spark{position:absolute;right:24px;top:26px;color:#fff6be;font-size:49px;text-shadow:2px 2px 0 #bd7185;pointer-events:none}
+.content{padding:35px 45px 34px;display:flex;flex-direction:column}.micro{display:flex;align-items:center;gap:8px;font-weight:900;font-size:11px;letter-spacing:2.2px;color:#e98290}.micro:before{content:"";width:23px;height:2px;background:currentColor}.name{font-family:Georgia,"Songti SC",serif;font-size:clamp(26px,2.8vw,36px);margin:10px 0 6px;line-height:1.16;letter-spacing:-1px}.sub{font-size:14px;color:#806b75;margin:0 0 16px;line-height:1.8}.rule{height:1.5px;background:repeating-linear-gradient(90deg,#ecc1c7 0 6px, transparent 6px 12px);margin-bottom:17px}.section-label{font-size:12px;font-weight:950;letter-spacing:2px;color:#c56c7f;text-transform:uppercase;margin-bottom:10px}.bio{font-size:16px;line-height:1.95;margin:0 0 26px;white-space:pre-wrap}.tag-row{display:flex;flex-wrap:wrap;gap:9px;margin:0 0 24px}.tag{font-size:12px;font-weight:800;border:1.5px solid var(--ink);border-radius:99px;padding:8px 13px;background:#ffe4e7}.tag:nth-child(even){background:#ffeacb}.footer{margin-top:auto;border-top:1px solid #ead6d7;padding-top:21px;display:flex;justify-content:space-between;gap:12px;align-items:center}.quote{font-family:Georgia,"Songti SC",serif;font-style:italic;font-size:14px;line-height:1.5;color:#8b6674}.round-heart{background:var(--rose);border:1.5px solid var(--ink);border-radius:50%;width:46px;height:46px;display:grid;place-items:center;font-size:25px;color:#fff;box-shadow:3px 3px 0 var(--ink);flex:none}
+.editor{margin-top:35px;border:1.5px solid #efd2d6;border-radius:19px;padding:21px 23px;background:#fffdf9;box-shadow:0 5px 20px #ae839015}.editor-top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}.editor-title{font-size:15px;font-weight:900}.editor-hint{font-size:12px;color:#917783}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}button,.upload-label{cursor:pointer;font:800 13px inherit;border:1.5px solid var(--ink);border-radius:12px;padding:12px 18px;background:#fff;color:var(--ink);box-shadow:3px 3px 0 var(--ink);transition:transform .15s,box-shadow .15s;display:inline-flex;align-items:center;gap:7px}button:hover,.upload-label:hover{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}.primary{background:var(--rose);color:white}.file-input{display:none}.footnote{font-size:11px;color:var(--muted);margin:15px 0 0;line-height:1.7}[contenteditable=true]{outline:none;border-radius:4px}[contenteditable=true]:hover{background:#fff1dba8}[contenteditable=true]:focus{background:#fff0d7;box-shadow:0 0 0 3px #ffd8b0}.tags-guide{margin-top:8px;color:#957b86;font-size:12px}
+@media(max-width:750px){.page{padding:22px 16px 45px}.top{margin-bottom:29px}.top-note{font-size:9px;padding:8px 10px}.card{grid-template-columns:1fr;box-shadow:6px 7px 0 #f4b4bc}.photo-side{border-right:none;border-bottom:2px solid var(--ink);min-height:355px;height:355px}.photo-wrap{min-height:0}.content{padding:31px 27px 29px}.name{font-size:32px}.intro h1{font-size:44px}.intro p{font-size:12px}.editor{padding:18px}}
+@media print{body{background:white}.top,.intro,.editor{display:none!important}.page{padding:0;max-width:none}.card{box-shadow:none;border:1px solid #888;break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="top"><div class="brand">desk<span class="heart">♥</span>cupid <span style="font-size:12px;font-weight:700;color:#a88b94;letter-spacing:0">/ PROFILE STUDIO</span></div><span class="top-note">MADE FOR CONNECTION ♡</span></header>
+  <section class="intro"><div class="eyebrow">A LITTLE ABOUT ME</div><h1>Nice to meet you <span style="color:#ff8393">♥</span></h1><p>一张小小的名片，装下独一无二的你。</p></section>
+  <main class="card" id="profileCard">
+    <div class="photo-side"><div class="photo-wrap"><div class="placeholder" id="placeholder"><svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="14" y="18" width="92" height="84" rx="17" stroke="currentColor" stroke-width="3" stroke-dasharray="7 7"/><circle cx="60" cy="50" r="15" fill="#f3afbb"/><path d="M31 87c3-19 17-27 29-27s26 8 29 27" fill="#f3afbb"/><path d="m90 11 3 8 8 3-8 3-3 8-3-8-8-3 8-3z" fill="#fff2b6"/></svg><span>YOUR FAVORITE PHOTO HERE<br/>点击下方按钮上传照片</span></div><img id="profilePhoto" alt="个人照片" style="display:none" /></div><div class="spark">✳</div><div class="photo-label" contenteditable="true" spellcheck="false">✿ a little sunshine</div></div>
+    <div class="content"><div class="micro">HELLO, I'M</div><h2 class="name" contenteditable="true" spellcheck="false">你的名字 / Name</h2><p class="sub" contenteditable="true" spellcheck="false">📍 北京 · 25岁 · 一个有趣的灵魂</p><div class="rule"></div><div class="section-label">THE SHORT STORY</div><p class="bio" contenteditable="true" spellcheck="false">Hi! 很高兴在这里认识你！☀️
+
+这里可以写几句话介绍自己：你喜欢的生活方式、最近热衷的小事，或者任何想让别人了解的特别之处。保持真实，也保持一点点可爱。</p><div class="section-label">LITTLE THINGS I LOVE</div><div class="tag-row" id="tagRow"><span class="tag" contenteditable="true">☕ 咖啡探店</span><span class="tag" contenteditable="true">✈️ 旅行</span><span class="tag" contenteditable="true">🎧 音乐</span><span class="tag" contenteditable="true">🌷 散步</span></div><div class="footer"><div class="quote" contenteditable="true" spellcheck="false">“Life is better when we connect.”</div><div class="round-heart">♥</div></div></div>
+  </main>
+  <section class="editor" id="editorPanel"><div class="editor-top"><div class="editor-title">✎ 编辑你的名片</div><div class="editor-hint">直接点击卡片内文字即可修改，无需懂代码</div></div><div class="actions"><label class="upload-label" for="photoUpload">📷 上传 / 替换照片</label><input class="file-input" id="photoUpload" type="file" accept="image/*"/><button id="addTag">＋ 添加兴趣标签</button><button id="removeTag">－ 删除末尾标签</button><button class="primary" id="exportBtn">↓ 下载编辑后的 HTML</button></div><p class="footnote">照片只在本地浏览器处理，不会上传服务器。建议使用小于 5 MB 的图片。导出的 HTML 内嵌照片与文字，打开即可展示。也可以使用浏览器“打印 → 保存为 PDF”。</p></section>
+</div>
+<script>
+(function(){
+  const photo=document.getElementById('profilePhoto');
+  const placeholder=document.getElementById('placeholder');
+  document.getElementById('photoUpload').addEventListener('change',function(e){
+    const file=e.target.files&&e.target.files[0];if(!file)return;
+    if(!file.type.startsWith('image/')){alert('请上传图片文件');return;}
+    if(file.size>8*1024*1024){alert('图片过大，请先压缩至 8 MB 以下');return;}
+    const reader=new FileReader();reader.onload=function(){photo.src=reader.result;photo.style.display='block';placeholder.style.display='none'};reader.readAsDataURL(file);
+  });
+  document.getElementById('addTag').addEventListener('click',function(){const t=document.createElement('span');t.className='tag';t.contentEditable='true';t.textContent='✨ 新标签';document.getElementById('tagRow').appendChild(t);t.focus()});
+  document.getElementById('removeTag').addEventListener('click',function(){const row=document.getElementById('tagRow');if(row.lastElementChild)row.lastElementChild.remove()});
+  document.getElementById('exportBtn').addEventListener('click',function(){
+    const copy=document.documentElement.cloneNode(true);
+    const pic=copy.querySelector('#profilePhoto'),pl=copy.querySelector('#placeholder');
+    if(photo.src && photo.src.startsWith('data:')){pic.setAttribute('src',photo.src);pic.style.display='block';pl.style.display='none'}
+    copy.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable'));
+    const panel=copy.querySelector('#editorPanel');if(panel)panel.remove();
+    copy.querySelectorAll('script').forEach(el=>el.remove());
+    const html='<!doctype html>\n'+copy.outerHTML;
+    const blob=new Blob([html],{type:'text/html;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='my-profile-card.html';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  });
+})();
+</script>
+</body>
+</html>

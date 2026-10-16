@@ -5,7 +5,7 @@ import { trpcErrorMessage } from "@/lib/errors";
 import { TYPES, getMeme } from "@/data/types";
 import { DIM_META, LOVE_LANGUAGES, type LangKey } from "@/data/questions";
 import { computeScoresFinal } from "@/data/questions-final";
-import { cardPreviewUrl, downloadCardHtml, downloadCardImage, type CardPerson } from "@/lib/matchCard";
+import { cardHtml, downloadCardHtml, downloadCardImage, measurePhotos, MATCH_CARD_CSS, type CardPerson } from "@/lib/matchCard";
 
 type User = {
   sessionId: string;
@@ -587,35 +587,76 @@ function AirdropPanel() {
   );
 }
 
-/** 匹配卡片弹窗：复刻 /me「本周的同桌」卡片（无推荐语，增加理想型/最看重），可下载 PNG/JPEG/HTML */
+/** 匹配卡片弹窗：复刻 v1 名片样式（无推荐语，含理想型/最看重/丘比特小猫），可下载 PNG/JPEG/HTML */
 function MatchCardDialog({ matchId, man, woman, onClose }: { matchId: number; man: string; woman: string; onClose: () => void }) {
   const q = trpc.responses.matchCardData.useQuery({ matchId });
   const [side, setSide] = useState<"man" | "woman">("woman");
-  const [img, setImg] = useState("");
+  const [photoIdx, setPhotoIdx] = useState(0);
+  const [ratios, setRatios] = useState<number[]>([]);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  const hostRef = useRef<HTMLDivElement>(null);
 
   const person = (q.data?.[side] ?? null) as CardPerson | null;
 
-  // 切换人或数据到达时重画预览
+  // 注入名片样式（一次）
   useEffect(() => {
-    setImg("");
+    if (!document.getElementById("mc-style")) {
+      const el = document.createElement("style");
+      el.id = "mc-style";
+      el.textContent = MATCH_CARD_CSS;
+      document.head.appendChild(el);
+    }
+  }, []);
+
+  // 人变了：重置到第一张照片并量长宽比
+  useEffect(() => {
+    setPhotoIdx(0);
+    setRatios([]);
     if (!person) return;
     let cancelled = false;
-    cardPreviewUrl(person)
-      .then((url) => { if (!cancelled) setImg(url); })
-      .catch(() => { if (!cancelled) setErr("卡片渲染失败"); });
+    void measurePhotos(person).then((r) => { if (!cancelled) setRatios(r); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [person?.name, q.data]);
+  }, [person?.name]);
+
+  // 渲染名片（同一套模板，导出也是它）
+  useEffect(() => {
+    if (hostRef.current && person) {
+      hostRef.current.innerHTML = cardHtml(person, { photoIdx, ratios });
+      // 缩放预览：外层高度按卡片实际高度 * 缩放比收拢
+      const card = hostRef.current.firstElementChild as HTMLElement | null;
+      const box = hostRef.current.parentElement?.parentElement;
+      if (card && box) {
+        requestAnimationFrame(() => {
+          box.style.height = `${Math.ceil(card.offsetHeight * 0.46) + 2}px`;
+        });
+      }
+    }
+  }, [person, photoIdx, ratios]);
+
+  // 翻页（事件委托）
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const onClick = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      const total = person?.photos.length ?? 0;
+      if (total <= 1) return;
+      if (t.closest("[data-mc-prev]")) setPhotoIdx((i) => (i - 1 + total) % total);
+      if (t.closest("[data-mc-next]")) setPhotoIdx((i) => (i + 1) % total);
+    };
+    host.addEventListener("click", onClick);
+    return () => host.removeEventListener("click", onClick);
+  }, [person]);
 
   const dl = async (kind: "png" | "jpeg" | "html") => {
     if (!person) return;
     setErr("");
     setBusy(kind);
     try {
-      if (kind === "html") downloadCardHtml(person);
-      else await downloadCardImage(person, kind);
+      if (kind === "html") await downloadCardHtml(person);
+      else await downloadCardImage(person, kind, photoIdx);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "下载失败");
     } finally {
@@ -625,7 +666,7 @@ function MatchCardDialog({ matchId, man, woman, onClose }: { matchId: number; ma
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(18,18,18,0.45)" }} onClick={onClose}>
-      <div className="w-full max-w-xl max-h-[90vh] overflow-auto rounded-3xl p-6" style={{ background: "#FFFDF6" }} onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-auto rounded-3xl p-6" style={{ background: "#FFFDF6" }} onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-start mb-3">
           <h2 className="font-display text-xl" style={{ color: "#121212" }}>{man} × {woman} · 匹配卡片</h2>
           <button onClick={onClose} className="text-sm px-3 py-1 rounded-full" style={{ background: "#FBF3E3", color: "#7a7060" }}>关闭</button>
@@ -646,9 +687,16 @@ function MatchCardDialog({ matchId, man, woman, onClose }: { matchId: number; ma
           ))}
         </div>
         {q.isLoading && <p className="text-sm" style={{ color: "#a3988a" }}>加载资料中…</p>}
-        {person && !img && !err && <p className="text-sm" style={{ color: "#a3988a" }}>正在画卡片…</p>}
-        {img && (
-          <img src={img} alt="匹配卡片预览" className="w-full rounded-2xl mb-4" style={{ border: "1px solid #F3ECD2" }} />
+        {/* 名片自然宽度 1150px，缩小预览；导出时按原尺寸离屏渲染 */}
+        {person && (
+          <div className="mb-4 overflow-hidden rounded-2xl" style={{ border: "1px solid #F3ECD2", background: "#fff9f0" }}>
+            <div style={{ width: 1150, transform: "scale(0.46)", transformOrigin: "top left" }}>
+              <div ref={hostRef} />
+            </div>
+          </div>
+        )}
+        {person && (person.photos.length > 1) && (
+          <p className="text-xs mb-3" style={{ color: "#a3988a" }}>卡片左侧可翻页，导出的是当前展示的这一张。</p>
         )}
         {err && <p className="text-sm mb-2" style={{ color: "#9a3412" }}>{err}</p>}
         {person && (
@@ -665,7 +713,7 @@ function MatchCardDialog({ matchId, man, woman, onClose }: { matchId: number; ma
               {busy === "jpeg" ? "导出中…" : "JPEG"}
             </button>
             <button onClick={() => void dl("html")} disabled={busy !== ""} className="text-sm px-4 py-2.5 rounded-full disabled:opacity-50" style={{ background: "#F3ECD2", color: "#5a5347" }}>
-              HTML（浏览器里可另存 PDF）
+              {busy === "html" ? "导出中…" : "HTML（可另存 PDF）"}
             </button>
           </div>
         )}
