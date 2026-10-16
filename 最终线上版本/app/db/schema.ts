@@ -172,10 +172,12 @@ export const matches = mysqlTable("matches", {
   womanNoteDays: text("woman_note_days"),
   /** 周五确认短信是否已发，避免每分钟重发 */
   fridaySmsSent: int("friday_sms_sent").notNull().default(0),
-  /** 回访：是否成行 / 评分 1-5 / 是否愿意继续 */
+  /** 回访：是否成行 / 评分 1-5 / 是否愿意继续（旧字段，网页版已改用 feedback_note） */
   met: int("met"),
   score: int("score"),
   willing: varchar("willing", { length: 8 }),
+  /** 回访改进意见（「我们如何做的更好？」自由文本） */
+  feedbackNote: text("feedback_note"),
   /** 月老推荐语（AI 生成，给男方/女方各一段） */
   blessingMan: text("blessing_man"),
   blessingWoman: text("blessing_woman"),

@@ -29,6 +29,8 @@ export function maskedCard(p: ProfileRow) {
     height: p.height,
     mbti: p.mbti,
     intro: p.intro,
+    expectation: p.expectation,
+    value: p.value,
   };
 }
 
@@ -207,8 +209,8 @@ export async function botChatWeb(profileId: number, text: string) {
   return { reply };
 }
 
-// ===== 周一周二回访（网页版，逻辑与 botBrain.tryFeedback 一致） =====
-export async function webFeedback(profile: { id: number; simDate: string | null }, fb: { met: number; score: number; willing: string }) {
+// ===== 周一周二回访（网页版：感觉如何 + 星级 + 改进意见） =====
+export async function webFeedback(profile: { id: number; simDate: string | null }, fb: { met: number; score: number; suggestion?: string }) {
   if (phaseOf(effectiveNow(profile)) !== "feedback") return { ok: false as const, error: "回访只在周一、周二开放。" };
   await ensureTable();
   const db = getDb();
@@ -223,7 +225,7 @@ export async function webFeedback(profile: { id: number; simDate: string | null 
     .limit(1);
   const match = rows[0];
   if (!match) return { ok: false as const, error: "没有等待回访的约会。" };
-  await setMatchFeedback(match.id, fb);
+  await setMatchFeedback(match.id, { met: fb.met, score: fb.score, feedbackNote: fb.suggestion?.trim() || undefined });
   if (fb.score <= 2) await setPoolState(profile.id, "review");
   if (fb.met === 0) {
     await db.insert(payments).values({ matchId: match.id, amountCents: 0, status: "refund_pending", reason: "no-show" });

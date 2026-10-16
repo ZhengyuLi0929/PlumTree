@@ -1017,35 +1017,9 @@ export const responseRouter = createRouter({
         rightSession: input.rightSession,
         note: input.note || null,
       });
-      // 同步进 matches 表（/me 本周同桌的TA tab、传话、约会邀请都读 matches）：
-      // 先删掉这两人本周在 matches 里的 pending 记录，再插手动配对
-      const profRows = await db.select().from(profiles);
-      const bySession = new Map(profRows.map((p) => [p.sessionId, p]));
-      const left = bySession.get(input.leftSession);
-      const right = bySession.get(input.rightSession);
-      if (left && right) {
-        const man = left.gender === "男" ? left : right.gender === "男" ? right : null;
-        const woman = left.gender === "女" ? left : right.gender === "女" ? right : null;
-        if (man && woman) {
-          await db.delete(matches).where(
-            and(
-              eq(matches.weekKey, weekKey),
-              eq(matches.state, "pending_send"),
-              or(
-                eq(matches.manProfileId, man.id), eq(matches.womanProfileId, man.id),
-                eq(matches.manProfileId, woman.id), eq(matches.womanProfileId, woman.id),
-              ),
-            ),
-          );
-          await db.insert(matches).values({
-            weekKey,
-            manProfileId: man.id,
-            womanProfileId: woman.id,
-            reason: `手动匹配${input.note ? ` · ${input.note}` : ""}`,
-            state: "pending_send",
-          });
-        }
-      }
+      // 同步进 matches 表（/me 本周同桌的TA tab、传话、约会邀请、匹配结果页都读 matches）
+      const { reconcileManualPairs } = await import("./lib/reconcile");
+      await reconcileManualPairs(weekKey);
       return { ok: true, weekKey };
     }),
 
@@ -1066,6 +1040,9 @@ export const responseRouter = createRouter({
     await ensureTable();
     const db = getDb();
     const weekKey = isoWeekKey();
+    // 自愈：手动配对里漏进 matches 的对先补上（历史遗留：同步逻辑上线前配的对）
+    const { reconcileManualPairs } = await import("./lib/reconcile");
+    await reconcileManualPairs(weekKey);
     const rows = await db.select().from(matches).where(eq(matches.weekKey, weekKey));
     const profRows = await db.select().from(profiles);
     const botRows = await db.select().from(botUsers);
@@ -1415,39 +1392,6 @@ export const responseRouter = createRouter({
       }
     }),
 
-  /** 匹配卡片数据：一对配对双方的可展示资料（照片/人格/介绍/理想型/最看重），admin 导出卡片用 */
-  matchCardData: publicQuery
-    .input(z.object({ matchId: z.number().int().positive() }))
-    .query(async ({ input, ctx }) => {
-      await requireAdmin(ctx.req);
-      await ensureTable();
-      const db = getDb();
-      const [m] = await db.select().from(matches).where(eq(matches.id, input.matchId));
-      if (!m) fail("NOT_FOUND", "配对不存在");
-      const { listPhotos } = await import("./lib/photos");
-      const cardOf = async (pid: number) => {
-        const [p] = await db.select().from(profiles).where(eq(profiles.id, pid));
-        if (!p) return null;
-        const quizRows = await db.select().from(responsesV3).where(eq(responsesV3.sessionId, p.sessionId));
-        const typeCode = quizRows.sort((a, b) => b.id - a.id)[0]?.typeCode ?? null;
-        return {
-          name: p.name,
-          gender: p.gender,
-          birthYear: p.birthYear,
-          city: p.city,
-          job: p.job,
-          height: p.height,
-          mbti: p.mbti,
-          intro: p.intro,
-          expectation: p.expectation,
-          value: p.value,
-          typeCode,
-          photos: await listPhotos(p.id),
-        };
-      };
-      return { weekKey: m.weekKey, state: m.state, man: await cardOf(m.manProfileId), woman: await cardOf(m.womanProfileId) };
-    }),
-
   // ===== 会员网页互动（/me 本周同桌的TA tab） =====
 
   /** 我本周的配对 + 对方卡片 + 小纸条记录 + 今日剩余额度 + 给我的推荐语 */
@@ -1481,13 +1425,13 @@ export const responseRouter = createRouter({
       return botChatWeb(profile.id, input.text);
     }),
 
-  /** 周一二回访（网页版） */
+  /** 周一二回访（网页版）：met 1=想继续/0=换个人，score 1-5 星，suggestion 改进意见 */
   memberWebFeedback: publicQuery
     .input(
       z.object({
         met: z.number().int().min(0).max(1),
         score: z.number().int().min(1).max(5),
-        willing: z.string().trim().min(1).max(8),
+        suggestion: z.string().trim().max(200).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {

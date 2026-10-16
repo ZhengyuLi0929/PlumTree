@@ -347,14 +347,14 @@ export async function weekMatchForProfile(profileId: number, weekKey = isoWeekKe
   return rows.find((row) => row.state !== "pending_send");
 }
 
-export async function setMatchFeedback(id: number, fb: { met?: number; score?: number; willing?: string }) {
+export async function setMatchFeedback(id: number, fb: { met?: number; score?: number; willing?: string; feedbackNote?: string }) {
   await ensureTable();
   const db = getDb();
   await db.update(matches).set({ ...fb, state: "done" }).where(eq(matches.id, id));
   const [match] = await db.select().from(matches).where(eq(matches.id, id));
   if (!match) return;
   const met = fb.met === 1 ? "成了" : fb.met === 0 ? "没成" : "未说成行";
-  const line = `回访：${met}，评分 ${fb.score ?? "无"}，继续 ${fb.willing ?? "未说"}`;
+  const line = `回访：${met}，评分 ${fb.score ?? "无"}${fb.willing ? `，继续 ${fb.willing}` : ""}${fb.feedbackNote ? `，改进意见：${fb.feedbackNote}` : ""}`;
   await appendChatFeedback(match.manProfileId, line);
   await appendChatFeedback(match.womanProfileId, line);
 }

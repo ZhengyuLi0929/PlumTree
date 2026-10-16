@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { trpcErrorMessage } from "@/lib/errors";
@@ -7,6 +7,7 @@ import { DIM_META, LOVE_LANGUAGES, type LangKey } from "@/data/questions";
 import { DIM_LEAN } from "@/data/dimExplain";
 import { computeScoresFinal } from "@/data/questions-final";
 import { MBTI_TYPES } from "@/data/mbti";
+import { cardHtml, measurePhotos, MATCH_CARD_CSS, type CardPerson } from "@/lib/matchCard";
 
 function asNumberRecord(raw: Record<string, number> | undefined) {
   const out: Record<number, number> = {};
@@ -687,12 +688,76 @@ function MatchmakerTab({ preview, name }: { preview: boolean; name: string }) {
 
 type MatchInfo = {
   match: { id: number; weekKey: string; state: string; reason: string | null; myReply: string | null; partnerReply: string | null } | null;
-  partner: { birthYear: number | null; city: string | null; job: string | null; height: number | null; mbti: string | null; intro: string | null; gender: string | null; typeCode: string | null; photos: Photo[] } | null;
+  partner: { birthYear: number | null; city: string | null; job: string | null; height: number | null; mbti: string | null; intro: string | null; expectation: string | null; value: string | null; gender: string | null; typeCode: string | null; photos: Photo[] } | null;
   notes: { id: number; fromMe: boolean; content: string; createdAt: string }[];
   blessingForMe: string | null;
   quotaLeft: number;
   sim: { date: string; label: string; dow: number } | null;
 };
+
+/** 资料名片嵌入（v1 粉墨样式，和 admin 资料卡片同一套模板）：按容器宽度缩放渲染 */
+function MatchCardEmbed({ person }: { person: CardPerson }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [photoIdx, setPhotoIdx] = useState(0);
+  const [ratios, setRatios] = useState<number[]>([]);
+  const [scale, setScale] = useState(0.5);
+
+  useEffect(() => {
+    if (!document.getElementById("mc-style")) {
+      const el = document.createElement("style");
+      el.id = "mc-style";
+      el.textContent = MATCH_CARD_CSS;
+      document.head.appendChild(el);
+    }
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    void measurePhotos(person).then((r) => { if (!cancelled) setRatios(r); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [person.typeCode, person.photos.length]);
+  useEffect(() => {
+    const measure = () => {
+      if (boxRef.current) setScale(boxRef.current.offsetWidth / 1150);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+  useEffect(() => {
+    if (!hostRef.current) return;
+    hostRef.current.innerHTML = cardHtml(person, { photoIdx, ratios });
+    const card = hostRef.current.firstElementChild as HTMLElement | null;
+    const box = boxRef.current;
+    if (card && box) {
+      requestAnimationFrame(() => {
+        box.style.height = `${Math.ceil(card.offsetHeight * scale) + 2}px`;
+      });
+    }
+  }, [person, photoIdx, ratios, scale]);
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const onClick = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      const total = person.photos.length;
+      if (total <= 1) return;
+      if (t.closest("[data-mc-prev]")) setPhotoIdx((i) => (i - 1 + total) % total);
+      if (t.closest("[data-mc-next]")) setPhotoIdx((i) => (i + 1) % total);
+    };
+    host.addEventListener("click", onClick);
+    return () => host.removeEventListener("click", onClick);
+  }, [person]);
+
+  return (
+    <div ref={boxRef} className="overflow-hidden rounded-2xl" style={{ background: "#fff9f0" }}>
+      <div style={{ width: 1150, transform: `scale(${scale})`, transformOrigin: "top left" }}>
+        <div ref={hostRef} />
+      </div>
+    </div>
+  );
+}
 
 const MATCH_STATE_TEXT: Record<string, string> = {
   sent: "已空投", chatting: "传话中", confirmed: "已确认见面", dating: "约会进行中",
@@ -707,7 +772,8 @@ function MatchmakerLive() {
   const feedback = trpc.responses.memberWebFeedback.useMutation();
   const [note, setNote] = useState("");
   const [chatText, setChatText] = useState("");
-  const [fb, setFb] = useState<{ met: number | null; score: number; willing: string }>({ met: null, score: 0, willing: "" });
+  const [subTab, setSubTab] = useState<"card" | "chat">("card");
+  const [fb, setFb] = useState<{ met: number | null; score: number; suggestion: string }>({ met: null, score: 0, suggestion: "" });
   const [toast, setToast] = useState("");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flash = (m: string) => {
@@ -752,8 +818,8 @@ function MatchmakerLive() {
   };
 
   const submitFeedback = () => {
-    if (fb.met === null || fb.score === 0 || !fb.willing) return flash("三项都选一下再提交");
-    feedback.mutate({ met: fb.met, score: fb.score, willing: fb.willing }, {
+    if (fb.met === null || fb.score === 0) return flash("先选感觉、再评个星");
+    feedback.mutate({ met: fb.met, score: fb.score, suggestion: fb.suggestion.trim() || undefined }, {
       onSuccess: (r) => flash(r.ok ? "收到，谢谢你认真反馈" : (r.error ?? "提交失败")),
       onError: (e) => flash(trpcErrorMessage(e, "提交失败")),
     });
@@ -790,6 +856,28 @@ function MatchmakerLive() {
         </div>
       )}
 
+      {/* 子 tab：本周同桌的TA / 和TA聊聊 */}
+      <div className="flex gap-2 mb-4">
+        {([["card", "本周同桌的TA"], ["chat", "和TA聊聊"]] as const).map(([k, label]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setSubTab(k)}
+            className="font-display text-sm px-5 py-2 rounded-full transition-all"
+            style={{
+              background: subTab === k ? "#F97028" : "#FFFDF6",
+              color: subTab === k ? "#FFFDF6" : "#7a7060",
+              border: "2px solid",
+              borderColor: subTab === k ? "#F97028" : "#E8DCC0",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {subTab === "card" ? (
+      <>
       {/* 模拟周二：配对还没影儿 */}
       {data?.sim?.dow === 2 && (
         <div className="rounded-3xl p-8 mb-4 text-center animate-pop" style={{ background: "#FFFDF6", boxShadow: "0 6px 24px rgba(18,18,18,0.06)" }}>
@@ -841,52 +929,27 @@ function MatchmakerLive() {
               </div>
             );
           }
-          const partnerType = data.partner!.typeCode && TYPES[data.partner!.typeCode] ? TYPES[data.partner!.typeCode] : null;
-          const partnerGender = data.partner!.gender ?? "女";
+          const cardPerson: CardPerson = {
+            name: "本周同桌",
+            gender: data.partner!.gender,
+            birthYear: data.partner!.birthYear,
+            city: data.partner!.city,
+            job: data.partner!.job,
+            height: data.partner!.height,
+            mbti: data.partner!.mbti,
+            intro: data.partner!.intro,
+            expectation: data.partner!.expectation,
+            value: data.partner!.value,
+            typeCode: data.partner!.typeCode,
+            photos: data.partner!.photos,
+          };
           return (
             <>
-              {/* 照片框：统一设计。有照片显示照片；没照片显示人格 avatar，底部标注 */}
-              {data.partner!.photos.length > 0 ? (
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  {data.partner!.photos.slice(0, 3).map((ph) => (
-                    <img key={ph.id} src={ph.url} alt="" className="w-full aspect-square object-cover rounded-2xl" style={{ background: "#F3ECD2" }} />
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-2xl overflow-hidden mb-3" style={{ background: "#FBF3E3" }}>
-                  <div className="flex items-center justify-center pt-5 pb-3">
-                    {partnerType ? (
-                      <img src={getAvatar(partnerType, partnerGender)} alt="" className="w-28 h-28 rounded-3xl object-cover" style={{ background: "#F3ECD2" }} />
-                    ) : (
-                      <span className="text-5xl">🫣</span>
-                    )}
-                  </div>
-                  <p className="text-center text-xs pb-3" style={{ color: "#a3988a" }}>很遗憾，该用户暂时没有上传照片哦～</p>
-                </div>
-              )}
-              <div className="rounded-2xl p-4 mb-3" style={{ background: "linear-gradient(135deg, #FFF1E8, #FBEDF1)" }}>
-                {/* 着重展示爱情人格四字母 */}
-                {partnerType && (
-                  <p className="mb-1.5">
-                    <span className="font-display text-xl" style={{ color: "#F97028" }}>{getMeme(partnerType, partnerGender)}</span>
-                    {"　"}
-                    <ArtText size="1.8rem">{partnerType.code}</ArtText>
-                  </p>
-                )}
-                <p className="text-sm font-semibold mb-1" style={{ color: "#121212" }}>
-                  {[
-                    data.partner!.birthYear ? `${data.partner!.birthYear} 年生` : "",
-                    data.partner!.city,
-                    data.partner!.job,
-                    data.partner!.height ? `${data.partner!.height}cm` : "",
-                    data.partner!.mbti,
-                  ].filter(Boolean).join(" · ")}
-                  <span className="text-xs font-normal ml-2" style={{ color: "#F97028" }}>{MATCH_STATE_TEXT[data.match!.state] ?? data.match!.state}</span>
-                </p>
-                {data.partner!.intro && <p className="text-xs leading-relaxed mt-1" style={{ color: "#5a5347" }}>{data.partner!.intro}</p>}
-              </div>
+              {/* 周五起解锁：完整资料名片（和 admin 资料卡片同一套模板） */}
+              <MatchCardEmbed person={cardPerson} />
+              <p className="text-xs text-center mt-2" style={{ color: "#a3988a" }}>{MATCH_STATE_TEXT[data.match!.state] ?? data.match!.state}</p>
               {data.blessingForMe && !(data.sim && data.sim.dow === 3) && (
-                <div className="rounded-2xl p-4" style={{ background: "#FBF3E3" }}>
+                <div className="rounded-2xl p-4 mt-3" style={{ background: "#FBF3E3" }}>
                   <p className="font-display text-sm mb-1" style={{ color: "#F97028" }}>丘比特悄悄话</p>
                   <p className="text-sm leading-relaxed" style={{ color: "#3d3830" }}>{data.blessingForMe}</p>
                 </div>
@@ -899,6 +962,73 @@ function MatchmakerLive() {
       {/* 约会安排（周五做见面确认；双方都想见之后安排时间地点） */}
       {data?.match && <DatePlanSection match={data.match} dow={dow} />}
 
+      {/* 约会回访：感觉 + 星级 + 改进意见 */}
+      <div className="rounded-3xl p-6 animate-pop" style={{ background: "#FFFDF6", boxShadow: "0 6px 24px rgba(18,18,18,0.06)" }}>
+        <h2 className="font-display text-lg mb-1" style={{ color: "#121212" }}>约会回访</h2>
+        <p className="text-xs mb-3" style={{ color: "#a3988a" }}>周一、周二开放，说说上周末的约会怎么样。</p>
+        {feedbackOpen ? (
+          <>
+            <div className="flex flex-col gap-2 mb-4">
+              {([["感觉不错，想继续和TA约会！", 1], ["差点意思，换个人吧。", 0]] as const).map(([label, v]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setFb((f) => ({ ...f, met: v }))}
+                  className="w-full py-3 rounded-2xl text-sm font-semibold transition-all"
+                  style={{
+                    background: fb.met === v ? "#F97028" : "#F3ECD2",
+                    color: fb.met === v ? "#FFFDF6" : "#5a5347",
+                    border: "2px solid",
+                    borderColor: fb.met === v ? "#F97028" : "transparent",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs mb-2" style={{ color: "#a3988a" }}>给上周的约会评个分</p>
+            <div className="flex gap-1.5 mb-4">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setFb((f) => ({ ...f, score: s }))}
+                  className="text-3xl leading-none transition-transform hover:scale-110"
+                  style={{ color: s <= fb.score ? "#F97028" : "#E8DCC0" }}
+                  aria-label={`${s} 星`}
+                >
+                  {s <= fb.score ? "★" : "☆"}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs mb-2" style={{ color: "#a3988a" }}>改进意见：我们如何做的更好？（可选）</p>
+            <textarea
+              rows={2}
+              maxLength={200}
+              className="w-full px-4 py-3 rounded-xl text-sm outline-none mb-4"
+              style={{ background: "#F3ECD2", color: "#121212", resize: "none" }}
+              placeholder="比如推荐的地方太远、时间不合适、想多了解对方哪方面…"
+              value={fb.suggestion}
+              onChange={(e) => setFb((f) => ({ ...f, suggestion: e.target.value }))}
+            />
+            <button
+              type="button"
+              onClick={submitFeedback}
+              disabled={feedback.isPending}
+              className="w-full font-display text-base py-3 rounded-full disabled:opacity-50"
+              style={{ background: "#F97028", color: "#FFFDF6" }}
+            >
+              {feedback.isPending ? "提交中…" : "提交回访"}
+            </button>
+          </>
+        ) : (
+          <p className="text-sm" style={{ color: "#a3988a" }}>还没到回访时间，周一见。</p>
+        )}
+      </div>
+      </>
+      ) : (
+      /* 和TA聊聊：左小纸条，右丘比特 */
+      <div className="grid md:grid-cols-2 gap-4 items-start">
       {/* 小纸条 */}
       <div className="rounded-3xl p-6 mb-4 animate-pop" style={{ background: "#FFFDF6", boxShadow: "0 6px 24px rgba(18,18,18,0.06)" }}>
         <h2 className="font-display text-lg mb-1" style={{ color: "#121212" }}>递小纸条</h2>
@@ -1014,53 +1144,8 @@ function MatchmakerLive() {
         </div>
       </div>
 
-      {/* 回访 */}
-      <div className="rounded-3xl p-6 animate-pop" style={{ background: "#FFFDF6", boxShadow: "0 6px 24px rgba(18,18,18,0.06)" }}>
-        <h2 className="font-display text-lg mb-1" style={{ color: "#121212" }}>约会回访</h2>
-        <p className="text-xs mb-3" style={{ color: "#a3988a" }}>周一、周二开放，说说上周末的约会怎么样。</p>
-        {feedbackOpen ? (
-          <>
-            <div className="flex gap-2 mb-3">
-              {([["成了", 1], ["没成", 0]] as const).map(([label, v]) => (
-                <button key={v} type="button" onClick={() => setFb((f) => ({ ...f, met: v }))}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
-                  style={{ background: fb.met === v ? "#F97028" : "#F3ECD2", color: fb.met === v ? "#FFFDF6" : "#5a5347" }}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-2 mb-3">
-              {[1, 2, 3, 4, 5].map((s) => (
-                <button key={s} type="button" onClick={() => setFb((f) => ({ ...f, score: s }))}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
-                  style={{ background: fb.score === s ? "#F97028" : "#F3ECD2", color: fb.score === s ? "#FFFDF6" : "#5a5347" }}>
-                  {s}分
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-2 mb-3">
-              {["想", "不了"].map((v) => (
-                <button key={v} type="button" onClick={() => setFb((f) => ({ ...f, willing: v }))}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
-                  style={{ background: fb.willing === v ? "#F97028" : "#F3ECD2", color: fb.willing === v ? "#FFFDF6" : "#5a5347" }}>
-                  {v === "想" ? "想继续" : "不了"}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={submitFeedback}
-              disabled={feedback.isPending}
-              className="w-full font-display text-base py-3 rounded-full disabled:opacity-50"
-              style={{ background: "#F97028", color: "#FFFDF6" }}
-            >
-              {feedback.isPending ? "提交中…" : "提交回访"}
-            </button>
-          </>
-        ) : (
-          <p className="text-sm" style={{ color: "#a3988a" }}>还没到回访时间，周一见。</p>
-        )}
       </div>
+      )}
       <Toast msg={toast} />
     </>
   );

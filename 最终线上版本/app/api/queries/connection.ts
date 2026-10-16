@@ -302,6 +302,7 @@ export async function ensureTable() {
       `ALTER TABLE matches ADD COLUMN man_note_days text`,
       `ALTER TABLE matches ADD COLUMN woman_note_days text`,
       `ALTER TABLE matches ADD COLUMN friday_sms_sent int NOT NULL DEFAULT 0`,
+      `ALTER TABLE matches ADD COLUMN feedback_note text`,
     ];
     for (const sql of alters) {
       try {

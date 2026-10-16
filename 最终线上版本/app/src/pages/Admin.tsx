@@ -481,7 +481,6 @@ function AirdropPanel() {
   const [err, setErr] = useState("");
   const [previewFor, setPreviewFor] = useState<number | null>(null);
   const [blessingFor, setBlessingFor] = useState<{ id: number; man: string; woman: string } | null>(null);
-  const [cardFor, setCardFor] = useState<{ id: number; man: string; woman: string } | null>(null);
 
   const run = async (p: Promise<unknown>) => {
     setErr("");
@@ -535,13 +534,6 @@ function AirdropPanel() {
                 >
                   推荐语
                 </button>
-                <button
-                  onClick={() => setCardFor(i)}
-                  className="text-xs px-3 py-2 rounded-full"
-                  style={{ background: "#FFFDF6", color: "#7a7060", border: "2px solid #E8DCC0" }}
-                >
-                  匹配卡片
-                </button>
                 {i.state === "pending_send" && (
                   <button
                     onClick={() => setPreviewFor(i.id)}
@@ -575,29 +567,17 @@ function AirdropPanel() {
           onClose={() => setBlessingFor(null)}
         />
       )}
-      {cardFor && (
-        <MatchCardDialog
-          matchId={cardFor.id}
-          man={cardFor.man}
-          woman={cardFor.woman}
-          onClose={() => setCardFor(null)}
-        />
-      )}
     </>
   );
 }
 
-/** 匹配卡片弹窗：复刻 v1 名片样式（无推荐语，含理想型/最看重/丘比特小猫），可下载 PNG/JPEG/HTML */
-function MatchCardDialog({ matchId, man, woman, onClose }: { matchId: number; man: string; woman: string; onClose: () => void }) {
-  const q = trpc.responses.matchCardData.useQuery({ matchId });
-  const [side, setSide] = useState<"man" | "woman">("woman");
+/** 资料卡片弹窗：v1 名片样式（含理想型/最看重/丘比特小猫），可下载 PNG/JPEG/HTML */
+function MatchCardDialog({ person, onClose }: { person: CardPerson; onClose: () => void }) {
   const [photoIdx, setPhotoIdx] = useState(0);
   const [ratios, setRatios] = useState<number[]>([]);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const hostRef = useRef<HTMLDivElement>(null);
-
-  const person = (q.data?.[side] ?? null) as CardPerson | null;
 
   // 注入名片样式（一次）
   useEffect(() => {
@@ -613,16 +593,15 @@ function MatchCardDialog({ matchId, man, woman, onClose }: { matchId: number; ma
   useEffect(() => {
     setPhotoIdx(0);
     setRatios([]);
-    if (!person) return;
     let cancelled = false;
     void measurePhotos(person).then((r) => { if (!cancelled) setRatios(r); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [person?.name]);
+  }, [person.name]);
 
   // 渲染名片（同一套模板，导出也是它）
   useEffect(() => {
-    if (hostRef.current && person) {
+    if (hostRef.current) {
       hostRef.current.innerHTML = cardHtml(person, { photoIdx, ratios });
       // 缩放预览：外层高度按卡片实际高度 * 缩放比收拢
       const card = hostRef.current.firstElementChild as HTMLElement | null;
@@ -641,7 +620,7 @@ function MatchCardDialog({ matchId, man, woman, onClose }: { matchId: number; ma
     if (!host) return;
     const onClick = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
-      const total = person?.photos.length ?? 0;
+      const total = person.photos.length;
       if (total <= 1) return;
       if (t.closest("[data-mc-prev]")) setPhotoIdx((i) => (i - 1 + total) % total);
       if (t.closest("[data-mc-next]")) setPhotoIdx((i) => (i + 1) % total);
@@ -651,7 +630,6 @@ function MatchCardDialog({ matchId, man, woman, onClose }: { matchId: number; ma
   }, [person]);
 
   const dl = async (kind: "png" | "jpeg" | "html") => {
-    if (!person) return;
     setErr("");
     setBusy(kind);
     try {
@@ -665,58 +643,38 @@ function MatchCardDialog({ matchId, man, woman, onClose }: { matchId: number; ma
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(18,18,18,0.45)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(18,18,18,0.5)" }} onClick={onClose}>
       <div className="w-full max-w-2xl max-h-[90vh] overflow-auto rounded-3xl p-6" style={{ background: "#FFFDF6" }} onClick={(e) => e.stopPropagation()}>
-        <div className="flex justify-between items-start mb-3">
-          <h2 className="font-display text-xl" style={{ color: "#121212" }}>{man} × {woman} · 匹配卡片</h2>
+        <div className="flex justify-between items-start mb-4">
+          <h2 className="font-display text-xl" style={{ color: "#121212" }}>{person.name} · 资料卡片</h2>
           <button onClick={onClose} className="text-sm px-3 py-1 rounded-full" style={{ background: "#FBF3E3", color: "#7a7060" }}>关闭</button>
         </div>
-        <div className="flex gap-2 mb-4">
-          {([["woman", `${woman} 的卡片`], ["man", `${man} 的卡片`]] as const).map(([s, label]) => (
-            <button
-              key={s}
-              onClick={() => setSide(s)}
-              className="text-xs px-4 py-2 rounded-full font-semibold"
-              style={{
-                background: side === s ? "#F97028" : "#F3ECD2",
-                color: side === s ? "#FFFDF6" : "#5a5347",
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        {q.isLoading && <p className="text-sm" style={{ color: "#a3988a" }}>加载资料中…</p>}
         {/* 名片自然宽度 1150px，缩小预览；导出时按原尺寸离屏渲染 */}
-        {person && (
-          <div className="mb-4 overflow-hidden rounded-2xl" style={{ border: "1px solid #F3ECD2", background: "#fff9f0" }}>
-            <div style={{ width: 1150, transform: "scale(0.46)", transformOrigin: "top left" }}>
-              <div ref={hostRef} />
-            </div>
+        <div className="mb-4 overflow-hidden rounded-2xl" style={{ border: "1px solid #F3ECD2", background: "#fff9f0" }}>
+          <div style={{ width: 1150, transform: "scale(0.46)", transformOrigin: "top left" }}>
+            <div ref={hostRef} />
           </div>
-        )}
-        {person && (person.photos.length > 1) && (
+        </div>
+        {person.photos.length > 1 && (
           <p className="text-xs mb-3" style={{ color: "#a3988a" }}>卡片左侧可翻页，导出的是当前展示的这一张。</p>
         )}
         {err && <p className="text-sm mb-2" style={{ color: "#9a3412" }}>{err}</p>}
-        {person && (
-          <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={() => void dl("png")}
-              disabled={busy !== ""}
-              className="font-display text-sm px-6 py-2.5 rounded-full disabled:opacity-50"
-              style={{ background: "#F97028", color: "#FFFDF6" }}
-            >
-              {busy === "png" ? "导出中…" : "一键下载 PNG ↓"}
-            </button>
-            <button onClick={() => void dl("jpeg")} disabled={busy !== ""} className="text-sm px-4 py-2.5 rounded-full disabled:opacity-50" style={{ background: "#F3ECD2", color: "#5a5347" }}>
-              {busy === "jpeg" ? "导出中…" : "JPEG"}
-            </button>
-            <button onClick={() => void dl("html")} disabled={busy !== ""} className="text-sm px-4 py-2.5 rounded-full disabled:opacity-50" style={{ background: "#F3ECD2", color: "#5a5347" }}>
-              {busy === "html" ? "导出中…" : "HTML（可另存 PDF）"}
-            </button>
-          </div>
-        )}
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => void dl("png")}
+            disabled={busy !== ""}
+            className="font-display text-sm px-6 py-2.5 rounded-full disabled:opacity-50"
+            style={{ background: "#F97028", color: "#FFFDF6" }}
+          >
+            {busy === "png" ? "导出中…" : "一键下载 PNG ↓"}
+          </button>
+          <button onClick={() => void dl("jpeg")} disabled={busy !== ""} className="text-sm px-4 py-2.5 rounded-full disabled:opacity-50" style={{ background: "#F3ECD2", color: "#5a5347" }}>
+            {busy === "jpeg" ? "导出中…" : "JPEG"}
+          </button>
+          <button onClick={() => void dl("html")} disabled={busy !== ""} className="text-sm px-4 py-2.5 rounded-full disabled:opacity-50" style={{ background: "#F3ECD2", color: "#5a5347" }}>
+            {busy === "html" ? "导出中…" : "HTML（可另存 PDF）"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1289,6 +1247,21 @@ function UserDialog({
   const detail = trpc.responses.userDetail.useQuery({ sessionId: user.sessionId });
   const d = detail.data;
   const [zoomPhoto, setZoomPhoto] = useState<{ id: number; url: string } | null>(null);
+  const [cardOpen, setCardOpen] = useState(false);
+  const cardPerson: CardPerson = {
+    name: user.name,
+    gender: user.gender,
+    birthYear: user.birthYear,
+    city: user.city,
+    job: user.job,
+    height: user.height,
+    mbti: user.mbti,
+    intro: user.intro,
+    expectation: user.expectation,
+    value: user.value,
+    typeCode: user.typeCode,
+    photos: d?.photos ?? [],
+  };
   const dp = (d?.datePrefs ?? null) as { locations?: string[]; activities?: string[]; times?: string[]; customLocation?: string; customActivity?: string } | null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(18,18,18,0.45)" }} onClick={onClose}>
@@ -1380,13 +1353,24 @@ function UserDialog({
           )}
         </div>
 
-        <button
-          onClick={onToggle}
-          className="mt-4 font-display text-sm px-5 py-2.5 rounded-full"
-          style={{ background: selected ? "#F97028" : "#F3ECD2", color: selected ? "#FFFDF6" : "#121212" }}
-        >
-          {selected ? "已选中" : "选入本对"}
-        </button>
+        <div className="mt-4 flex gap-2 flex-wrap">
+          <button
+            onClick={onToggle}
+            className="font-display text-sm px-5 py-2.5 rounded-full"
+            style={{ background: selected ? "#F97028" : "#F3ECD2", color: selected ? "#FFFDF6" : "#121212" }}
+          >
+            {selected ? "已选中" : "选入本对"}
+          </button>
+          <button
+            onClick={() => setCardOpen(true)}
+            disabled={!d}
+            className="font-display text-sm px-5 py-2.5 rounded-full disabled:opacity-50"
+            style={{ background: "#121212", color: "#F3ECD2" }}
+          >
+            资料卡片 ↓
+          </button>
+        </div>
+        {cardOpen && <MatchCardDialog person={cardPerson} onClose={() => setCardOpen(false)} />}
       </div>
     </div>
   );
