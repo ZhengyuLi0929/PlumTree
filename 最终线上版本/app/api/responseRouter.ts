@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, eq, or } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createRouter, publicQuery } from "./middleware";
 import { ensureTable, getDb, hasDatabase } from "./queries/connection";
@@ -1392,6 +1392,27 @@ export const responseRouter = createRouter({
       }
     }),
 
+  /** 改进意见列表（回访的自由文本 + 拒绝见面原因，admin 新 tab 展示） */
+  feedbackNotes: publicQuery.query(async ({ ctx }) => {
+    await requireAdmin(ctx.req);
+    await ensureTable();
+    const db = getDb();
+    const rows = await db.select().from(matches).orderBy(desc(matches.updatedAt));
+    const withNotes = rows.filter((r) => r.feedbackNote && r.feedbackNote.trim());
+    const profRows = await db.select().from(profiles);
+    const nameOf = new Map(profRows.map((p) => [p.id, p.name]));
+    const manWoman = (m: (typeof rows)[number]) => `${nameOf.get(m.manProfileId) ?? "?"}×${nameOf.get(m.womanProfileId) ?? "?"}`;
+    return withNotes.slice(0, 100).map((r) => ({
+      id: r.id,
+      weekKey: r.weekKey,
+      from: r.feedbackBy ? (nameOf.get(r.feedbackBy) ?? `#${r.feedbackBy}`) : "未署名",
+      pair: manWoman(r),
+      note: r.feedbackNote,
+      score: r.score,
+      updatedAt: r.updatedAt,
+    }));
+  }),
+
   // ===== 会员网页互动（/me 本周同桌的TA tab） =====
 
   /** 我本周的配对 + 对方卡片 + 小纸条记录 + 今日剩余额度 + 给我的推荐语 */
@@ -1425,11 +1446,10 @@ export const responseRouter = createRouter({
       return botChatWeb(profile.id, input.text);
     }),
 
-  /** 周一二回访（网页版）：met 1=想继续/0=换个人，score 1-5 星，suggestion 改进意见 */
+  /** 周一二回访（网页版）：1-5 星 + 改进意见 */
   memberWebFeedback: publicQuery
     .input(
       z.object({
-        met: z.number().int().min(0).max(1),
         score: z.number().int().min(1).max(5),
         suggestion: z.string().trim().max(200).optional(),
       }),
@@ -1440,9 +1460,10 @@ export const responseRouter = createRouter({
       return webFeedback(profile, input);
     }),
 
-  /** 周五见面确认（网页版）：双方都想见 → confirmed；一方不想见 → declined */
+  /** 周五见面确认（网页版）：yes 想见 / maybe 对方愿意我也可以 / no 不见。
+      规则：任一方 no → declined；双方都表态且没人 no → confirmed（yes+maybe、maybe+maybe 都算见）。 */
   memberConfirmDate: publicQuery
-    .input(z.object({ want: z.boolean() }))
+    .input(z.object({ reply: z.enum(["yes", "maybe", "no"]), reason: z.string().trim().max(200).optional() }))
     .mutation(async ({ input, ctx }) => {
       const profile = await requireMemberProfile(ctx.req);
       await ensureTable();
@@ -1452,10 +1473,16 @@ export const responseRouter = createRouter({
       if (!match) fail("NOT_FOUND", "本周还没有匹配对象");
       if (!["sent", "chatting", "confirmed", "declined"].includes(match.state)) fail("PRECONDITION_FAILED", "当前状态不能确认");
       const isMan = match.manProfileId === profile.id;
-      const manReply = isMan ? (input.want ? "yes" : "no") : match.manReply;
-      const womanReply = isMan ? match.womanReply : input.want ? "yes" : "no";
-      const state = manReply === "yes" && womanReply === "yes" ? "confirmed" : manReply === "no" || womanReply === "no" ? "declined" : match.state;
-      await db.update(matches).set({ manReply, womanReply, state }).where(eq(matches.id, match.id));
+      const manReply = isMan ? input.reply : match.manReply;
+      const womanReply = isMan ? match.womanReply : input.reply;
+      const state = manReply === "no" || womanReply === "no" ? "declined" : manReply && womanReply ? "confirmed" : match.state;
+      const patch: Record<string, unknown> = { manReply, womanReply, state };
+      // 拒绝方可以顺手留一句原因（存进改进意见，admin 可见）
+      if (input.reply === "no" && input.reason) {
+        patch.feedbackNote = input.reason;
+        patch.feedbackBy = profile.id;
+      }
+      await db.update(matches).set(patch).where(eq(matches.id, match.id));
       return { ok: true, state };
     }),
 

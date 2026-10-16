@@ -5,7 +5,8 @@ import { trpcErrorMessage } from "@/lib/errors";
 import { TYPES, getMeme } from "@/data/types";
 import { DIM_META, LOVE_LANGUAGES, type LangKey } from "@/data/questions";
 import { computeScoresFinal } from "@/data/questions-final";
-import { cardHtml, downloadCardHtml, downloadCardImage, measurePhotos, MATCH_CARD_CSS, type CardPerson } from "@/lib/matchCard";
+import { downloadCardHtml, downloadCardImage, type CardPerson } from "@/lib/matchCard";
+import MatchCardEmbed from "@/components/MatchCardEmbed";
 
 type User = {
   sessionId: string;
@@ -135,7 +136,7 @@ function AdminLogin({ onOk }: { onOk: () => void }) {
 }
 
 function AdminDesk({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"match" | "dsmatch" | "airdrop" | "pool" | "merchant" | "ops" | "visits">("match");
+  const [tab, setTab] = useState<"match" | "dsmatch" | "airdrop" | "pool" | "merchant" | "ops" | "visits" | "feedback">("match");
   const logout = trpc.responses.adminLogout.useMutation();
 
   return (
@@ -160,10 +161,11 @@ function AdminDesk({ onLogout }: { onLogout: () => void }) {
         <TabBtn active={tab === "dsmatch"} onClick={() => setTab("dsmatch")}>AI匹配</TabBtn>
         <TabBtn active={tab === "airdrop"} onClick={() => setTab("airdrop")}>匹配结果</TabBtn>
         <TabBtn active={tab === "merchant"} onClick={() => setTab("merchant")}>商户核销</TabBtn>
+        <TabBtn active={tab === "feedback"} onClick={() => setTab("feedback")}>改进意见</TabBtn>
         <TabBtn active={tab === "ops"} onClick={() => setTab("ops")}>运营指标</TabBtn>
         <TabBtn active={tab === "visits"} onClick={() => setTab("visits")}>访问统计</TabBtn>
       </div>
-      {tab === "match" ? <MatchPanel /> : tab === "dsmatch" ? <DsMatchPanel /> : tab === "airdrop" ? <AirdropPanel /> : tab === "merchant" ? <MerchantPanel /> : tab === "ops" ? <OpsPanel /> : <VisitPanel />}
+      {tab === "match" ? <MatchPanel /> : tab === "dsmatch" ? <DsMatchPanel /> : tab === "airdrop" ? <AirdropPanel /> : tab === "merchant" ? <MerchantPanel /> : tab === "feedback" ? <FeedbackPanel /> : tab === "ops" ? <OpsPanel /> : <VisitPanel />}
     </Shell>
   );
 }
@@ -571,63 +573,11 @@ function AirdropPanel() {
   );
 }
 
-/** 资料卡片弹窗：v1 名片样式（含理想型/最看重/丘比特小猫），可下载 PNG/JPEG/HTML */
+/** 资料卡片弹窗：竖版名片（含理想型/最看重/丘比特小猫），可下载 PNG/JPEG/HTML */
 function MatchCardDialog({ person, onClose }: { person: CardPerson; onClose: () => void }) {
   const [photoIdx, setPhotoIdx] = useState(0);
-  const [ratios, setRatios] = useState<number[]>([]);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
-  const hostRef = useRef<HTMLDivElement>(null);
-
-  // 注入名片样式（一次）
-  useEffect(() => {
-    if (!document.getElementById("mc-style")) {
-      const el = document.createElement("style");
-      el.id = "mc-style";
-      el.textContent = MATCH_CARD_CSS;
-      document.head.appendChild(el);
-    }
-  }, []);
-
-  // 人变了：重置到第一张照片并量长宽比
-  useEffect(() => {
-    setPhotoIdx(0);
-    setRatios([]);
-    let cancelled = false;
-    void measurePhotos(person).then((r) => { if (!cancelled) setRatios(r); });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [person.name]);
-
-  // 渲染名片（同一套模板，导出也是它）
-  useEffect(() => {
-    if (hostRef.current) {
-      hostRef.current.innerHTML = cardHtml(person, { photoIdx, ratios });
-      // 缩放预览：外层高度按卡片实际高度 * 缩放比收拢
-      const card = hostRef.current.firstElementChild as HTMLElement | null;
-      const box = hostRef.current.parentElement?.parentElement;
-      if (card && box) {
-        requestAnimationFrame(() => {
-          box.style.height = `${Math.ceil(card.offsetHeight * 0.46) + 2}px`;
-        });
-      }
-    }
-  }, [person, photoIdx, ratios]);
-
-  // 翻页（事件委托）
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    const onClick = (e: MouseEvent) => {
-      const t = e.target as HTMLElement;
-      const total = person.photos.length;
-      if (total <= 1) return;
-      if (t.closest("[data-mc-prev]")) setPhotoIdx((i) => (i - 1 + total) % total);
-      if (t.closest("[data-mc-next]")) setPhotoIdx((i) => (i + 1) % total);
-    };
-    host.addEventListener("click", onClick);
-    return () => host.removeEventListener("click", onClick);
-  }, [person]);
 
   const dl = async (kind: "png" | "jpeg" | "html") => {
     setErr("");
@@ -644,19 +594,16 @@ function MatchCardDialog({ person, onClose }: { person: CardPerson; onClose: () 
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(18,18,18,0.5)" }} onClick={onClose}>
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-auto rounded-3xl p-6" style={{ background: "#FFFDF6" }} onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-lg max-h-[90vh] overflow-auto rounded-3xl p-6" style={{ background: "#FFFDF6" }} onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-start mb-4">
           <h2 className="font-display text-xl" style={{ color: "#121212" }}>{person.name} · 资料卡片</h2>
           <button onClick={onClose} className="text-sm px-3 py-1 rounded-full" style={{ background: "#FBF3E3", color: "#7a7060" }}>关闭</button>
         </div>
-        {/* 名片自然宽度 1150px，缩小预览；导出时按原尺寸离屏渲染 */}
-        <div className="mb-4 overflow-hidden rounded-2xl" style={{ border: "1px solid #F3ECD2", background: "#fff9f0" }}>
-          <div style={{ width: 1150, transform: "scale(0.46)", transformOrigin: "top left" }}>
-            <div ref={hostRef} />
-          </div>
+        <div className="mb-4 rounded-2xl py-3" style={{ background: "#fff9f0", border: "1px solid #F3ECD2" }}>
+          <MatchCardEmbed person={person} photoIdx={photoIdx} onPhotoIdx={setPhotoIdx} />
         </div>
         {person.photos.length > 1 && (
-          <p className="text-xs mb-3" style={{ color: "#a3988a" }}>卡片左侧可翻页，导出的是当前展示的这一张。</p>
+          <p className="text-xs mb-3" style={{ color: "#a3988a" }}>卡片照片区可翻页，导出的是当前展示的这一张。</p>
         )}
         {err && <p className="text-sm mb-2" style={{ color: "#9a3412" }}>{err}</p>}
         <div className="flex gap-2 flex-wrap">
@@ -1373,6 +1320,29 @@ function UserDialog({
         {cardOpen && <MatchCardDialog person={cardPerson} onClose={() => setCardOpen(false)} />}
       </div>
     </div>
+  );
+}
+
+/** 改进意见：回访自由文本 + 拒绝见面原因（用户提交的原始建议） */
+function FeedbackPanel() {
+  const q = trpc.responses.feedbackNotes.useQuery(undefined, { refetchInterval: 30000 });
+  if (q.isLoading) return <p className="text-center py-16 font-display" style={{ color: "#a3988a" }}>加载中…</p>;
+  const rows = q.data ?? [];
+  return (
+    <Card title={`改进意见 · ${rows.length} 条`}>
+      {rows.length === 0 && <p className="text-sm" style={{ color: "#a3988a" }}>还没有用户提交改进意见。用户在回访或拒绝见面时写的话会出现在这里。</p>}
+      <div className="flex flex-col gap-2">
+        {rows.map((r) => (
+          <div key={r.id} className="rounded-2xl p-4" style={{ background: "#FBF3E3" }}>
+            <p className="text-xs mb-1" style={{ color: "#a3988a" }}>
+              <span className="font-semibold" style={{ color: "#F97028" }}>{r.from}</span>
+              {" · "}{r.pair} · {r.weekKey}{r.score ? ` · ${r.score} 星` : ""} · {new Date(r.updatedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}
+            </p>
+            <p className="text-sm leading-relaxed" style={{ color: "#3d3830" }}>{r.note}</p>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 

@@ -176,8 +176,10 @@ export const matches = mysqlTable("matches", {
   met: int("met"),
   score: int("score"),
   willing: varchar("willing", { length: 8 }),
-  /** 回访改进意见（「我们如何做的更好？」自由文本） */
+  /** 回访改进意见（「我们如何做的更好？」自由文本；不见面原因也存这里） */
   feedbackNote: text("feedback_note"),
+  /** 改进意见的提交人（profiles.id） */
+  feedbackBy: bigint("feedback_by", { mode: "number" }),
   /** 月老推荐语（AI 生成，给男方/女方各一段） */
   blessingMan: text("blessing_man"),
   blessingWoman: text("blessing_woman"),

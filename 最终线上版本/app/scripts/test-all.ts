@@ -349,11 +349,11 @@ async function main() {
     // 回访（强制周一周二）
     process.env.BOT_FORCE_PHASE = "feedback";
     await db.update(schema.matches).set({ state: "dating" }).where(eq(schema.matches.id, m1id));
-    const fb = await call("memberWebFeedback", { met: 1, score: 4, suggestion: "希望下次推荐更近的地方" }, cookieA);
+    const fb = await call("memberWebFeedback", { score: 4, suggestion: "希望下次推荐更近的地方" }, cookieA);
     assert("I14 回访提交 → ok", fb.ok && fb.data.ok === true);
     const [m1Fb] = await db.select().from(schema.matches).where(eq(schema.matches.id, m1id));
     assert("I15 回访写入 matches（score=4, done, 改进意见落库）", m1Fb.score === 4 && m1Fb.state === "done" && m1Fb.feedbackNote === "希望下次推荐更近的地方");
-    const fbBad = await call("memberWebFeedback", { met: 0, score: 2 }, cookieDup);
+    const fbBad = await call("memberWebFeedback", { score: 2 }, cookieDup);
     assert("I16 差评回访 → 也收（出池由调度侧查）", fbBad.ok);
     delete process.env.BOT_FORCE_PHASE;
 

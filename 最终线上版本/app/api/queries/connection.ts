@@ -271,7 +271,10 @@ const DDL = [
 ];
 
 export async function ensureTable() {
-  tableReady ??= (async () => {
+  // 失败不能缓存：数据库一抖动，若把 rejected promise 存进 tableReady，
+  // 之后所有请求都会一直失败直到重启进程（表现为"匹配消息全没了"）。
+  if (!tableReady) {
+    tableReady = (async () => {
     const p = getPool();
     for (const sql of DDL) {
       // 用 query 而不是预编译 execute：MySQL 不允许 CREATE TABLE 走 prepared statement
@@ -303,6 +306,7 @@ export async function ensureTable() {
       `ALTER TABLE matches ADD COLUMN woman_note_days text`,
       `ALTER TABLE matches ADD COLUMN friday_sms_sent int NOT NULL DEFAULT 0`,
       `ALTER TABLE matches ADD COLUMN feedback_note text`,
+      `ALTER TABLE matches ADD COLUMN feedback_by bigint`,
     ];
     for (const sql of alters) {
       try {
@@ -334,6 +338,7 @@ export async function ensureTable() {
       }
     }
   })();
+  }
   tableReady.catch(() => {
     tableReady = null;
   });

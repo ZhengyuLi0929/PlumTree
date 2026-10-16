@@ -9,13 +9,13 @@ import { screenText } from "./safety";
 import { chat } from "./llm";
 import { MATCHMAKER_SYSTEM } from "./matchmaker";
 import { setMatchFeedback, setPoolState, chatFactsForMatching } from "./botStore";
-import { payments } from "../../db/schema";
 import { phaseOf } from "./weekly";
 
 export const NOTE_TEXT = {
   quotaUsed: "今天的小纸条额度用完啦，明天再来",
   closed: "小纸条只在周三、周四、周五可以发送。",
   blocked: "这句话我不好递出去，换一句礼貌点的吧。",
+  contactBlocked: "联系方式先别急着换哦～见了面有的是机会加！",
   noMatch: "本周还没有匹配对象。",
 } as const;
 
@@ -51,7 +51,7 @@ export async function myActiveMatch(profile: { id: number; simDate: string | nul
       ),
     )
     .orderBy(desc(matches.id));
-  return rows.find((r) => ["sent", "chatting", "confirmed", "dating"].includes(r.state));
+  return rows.find((r) => ["sent", "chatting", "confirmed", "dating", "declined"].includes(r.state));
 }
 
 export async function noteQuotaLeft(profile: { id: number; simDate: string | null }): Promise<number> {
@@ -68,7 +68,7 @@ export async function sendNote(profile: { id: number; simDate: string | null }, 
   if (!noteDayOpen(effectiveNow(profile))) return { ok: false as const, error: NOTE_TEXT.closed };
   if ((await noteQuotaLeft(profile)) <= 0) return { ok: false as const, error: NOTE_TEXT.quotaUsed };
   const screened = await screenText(text);
-  if (!screened.ok) return { ok: false as const, error: NOTE_TEXT.blocked };
+  if (!screened.ok) return { ok: false as const, error: screened.reason === "包含联系方式" ? NOTE_TEXT.contactBlocked : NOTE_TEXT.blocked };
   const match = await myActiveMatch(profile);
   if (!match) return { ok: false as const, error: NOTE_TEXT.noMatch };
   const partnerId = match.manProfileId === profile.id ? match.womanProfileId : match.manProfileId;
@@ -209,8 +209,8 @@ export async function botChatWeb(profileId: number, text: string) {
   return { reply };
 }
 
-// ===== 周一周二回访（网页版：感觉如何 + 星级 + 改进意见） =====
-export async function webFeedback(profile: { id: number; simDate: string | null }, fb: { met: number; score: number; suggestion?: string }) {
+// ===== 周一周二回访（网页版：星级 + 改进意见） =====
+export async function webFeedback(profile: { id: number; simDate: string | null }, fb: { score: number; suggestion?: string }) {
   if (phaseOf(effectiveNow(profile)) !== "feedback") return { ok: false as const, error: "回访只在周一、周二开放。" };
   await ensureTable();
   const db = getDb();
@@ -225,10 +225,8 @@ export async function webFeedback(profile: { id: number; simDate: string | null 
     .limit(1);
   const match = rows[0];
   if (!match) return { ok: false as const, error: "没有等待回访的约会。" };
-  await setMatchFeedback(match.id, { met: fb.met, score: fb.score, feedbackNote: fb.suggestion?.trim() || undefined });
+  await setMatchFeedback(match.id, { score: fb.score, feedbackNote: fb.suggestion?.trim() || undefined });
+  await db.update(matches).set({ feedbackBy: profile.id }).where(eq(matches.id, match.id));
   if (fb.score <= 2) await setPoolState(profile.id, "review");
-  if (fb.met === 0) {
-    await db.insert(payments).values({ matchId: match.id, amountCents: 0, status: "refund_pending", reason: "no-show" });
-  }
   return { ok: true as const };
 }
