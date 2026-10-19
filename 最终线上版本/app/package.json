@@ -21,6 +21,7 @@
     "test:dsmatch": "esbuild scripts/test-dsmatch.ts --platform=node --bundle --format=esm --outfile=dist/test-dsmatch.mjs --alias:@db=./db --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && node dist/test-dsmatch.mjs",
     "gen:passwords": "esbuild scripts/gen-passwords.ts --platform=node --bundle --format=esm --outfile=dist/gen-passwords.mjs --alias:@db=./db --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && node dist/gen-passwords.mjs",
     "reconcile:pairs": "esbuild scripts/reconcile-pairs.ts --platform=node --bundle --format=esm --outfile=dist/reconcile-pairs.mjs --alias:@db=./db --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && node dist/reconcile-pairs.mjs",
+    "import:merchants": "esbuild scripts/import-merchants.ts --platform=node --bundle --format=esm --outfile=dist/import-merchants.mjs --alias:@db=./db --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && node dist/import-merchants.mjs",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:generate": "drizzle-kit generate",

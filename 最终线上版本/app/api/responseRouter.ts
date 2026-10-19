@@ -1493,13 +1493,19 @@ export const responseRouter = createRouter({
     return dateOptions(profile);
   }),
 
-  /** 发送约会邀请（商户+时间，双方都确认见面后） */
+  /** 发送约会邀请（商户或自定义地点+时间，双方都确认见面后） */
   memberSendInvite: publicQuery
-    .input(z.object({ merchantId: z.number().int().positive(), timeSlot: z.string().trim().min(1).max(32) }))
+    .input(
+      z.object({
+        merchantId: z.number().int().positive().nullish(),
+        timeSlot: z.string().trim().min(1).max(32),
+        customPlace: z.string().trim().min(1).max(64).optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const profile = await requireMemberProfile(ctx.req);
       const { sendInvite } = await import("./lib/invites");
-      return sendInvite(profile, input.merchantId, input.timeSlot);
+      return sendInvite(profile, input.merchantId ?? null, input.timeSlot, input.customPlace);
     }),
 
   memberInvites: publicQuery.query(async ({ ctx }) => {
@@ -1516,6 +1522,22 @@ export const responseRouter = createRouter({
       const { answerInvite } = await import("./lib/invites");
       return answerInvite(profile.id, input.inviteId, input.accept);
     }),
+
+  /** 「我的信箱」未读通知数（顺带跑节点提醒的懒生成） */
+  memberNotifications: publicQuery.query(async ({ ctx }) => {
+    const profile = await requireMemberProfile(ctx.req);
+    const { runDailyTriggers, unreadNotificationCount } = await import("./lib/notify");
+    await runDailyTriggers(profile);
+    return { unread: await unreadNotificationCount(profile) };
+  }),
+
+  /** 打开「我的信箱」即标记全部已读 */
+  memberMarkRead: publicQuery.mutation(async ({ ctx }) => {
+    const profile = await requireMemberProfile(ctx.req);
+    const { markNotificationsRead } = await import("./lib/notify");
+    await markNotificationsRead(profile.id);
+    return { ok: true };
+  }),
 
   /** 模拟器（灰度内测）：进入下一天 */
   memberSimNextDay: publicQuery.mutation(async ({ ctx }) => {

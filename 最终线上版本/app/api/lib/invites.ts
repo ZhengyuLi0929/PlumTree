@@ -81,7 +81,7 @@ export async function dateOptions(profile: ProfileRow) {
   };
 }
 
-export async function sendInvite(profile: ProfileRow, merchantId: number, timeSlot: string) {
+export async function sendInvite(profile: ProfileRow, merchantId: number | null, timeSlot: string, customPlace?: string) {
   if (profile.simDate && ![5, 6, 0].includes(simDow(profile)!)) {
     return { ok: false as const, error: "周五确认见面之后才能发邀请" };
   }
@@ -92,9 +92,20 @@ export async function sendInvite(profile: ProfileRow, merchantId: number, timeSl
   if (match.dateMerchantId != null) return { ok: false as const, error: "这周的约会已经定下来了" };
   await ensureTable();
   const db = getDb();
-  const [merch] = await db.select().from(merchants).where(eq(merchants.id, merchantId));
+  // 自定义地点：「以上都不合适，让我自己确定一个地点」→ 落一条无商圈无类别的商户记录（不进推荐列表，admin 可见）
+  let mid = merchantId;
+  if (!mid && customPlace?.trim()) {
+    const inserted = await db.insert(merchants).values({ name: customPlace.trim(), address: null, rebateCents: 0, status: "active" });
+    mid = Number(inserted[0].insertId);
+  }
+  if (!mid) return { ok: false as const, error: "先选一个商家，或自己填一个地点" };
+  const [merch] = await db.select().from(merchants).where(eq(merchants.id, mid));
   if (!merch) return { ok: false as const, error: "商家不存在" };
-  await db.insert(dateInvites).values({ matchId: match.id, fromProfileId: profile.id, merchantId, timeSlot });
+  await db.insert(dateInvites).values({ matchId: match.id, fromProfileId: profile.id, merchantId: mid, timeSlot });
+  // 给对方推信箱通知
+  const partnerId = match.manProfileId === profile.id ? match.womanProfileId : match.manProfileId;
+  const { notifyUser, NOTIFY_TEXT } = await import("./notify");
+  await notifyUser(partnerId, NOTIFY_TEXT.invite);
   return { ok: true as const };
 }
 
@@ -132,10 +143,14 @@ export async function answerInvite(profileId: number, inviteId: number, accept: 
   }
   if (!accept) {
     await db.update(dateInvites).set({ status: "rejected" }).where(eq(dateInvites.id, inviteId));
+    const { notifyUser, NOTIFY_TEXT } = await import("./notify");
+    await notifyUser(invite.fromProfileId, NOTIFY_TEXT.inviteRejected);
     return { ok: true as const, accepted: false };
   }
   await db.update(dateInvites).set({ status: "accepted" }).where(eq(dateInvites.id, inviteId));
   await db.update(matches).set({ dateMerchantId: invite.merchantId, dateTimeSlot: invite.timeSlot, state: "dating" }).where(eq(matches.id, invite.matchId));
   await db.update(dateInvites).set({ status: "superseded" }).where(and(eq(dateInvites.matchId, invite.matchId), eq(dateInvites.status, "pending")));
+  const { notifyUser, NOTIFY_TEXT } = await import("./notify");
+  await notifyUser(invite.fromProfileId, NOTIFY_TEXT.inviteAccepted);
   return { ok: true as const, accepted: true };
 }

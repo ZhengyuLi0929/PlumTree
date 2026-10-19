@@ -307,6 +307,9 @@ export async function ensureTable() {
       `ALTER TABLE matches ADD COLUMN friday_sms_sent int NOT NULL DEFAULT 0`,
       `ALTER TABLE matches ADD COLUMN feedback_note text`,
       `ALTER TABLE matches ADD COLUMN feedback_by bigint`,
+      `ALTER TABLE web_messages ADD COLUMN notify int NOT NULL DEFAULT 0`,
+      `ALTER TABLE web_messages ADD COLUMN tag varchar(32)`,
+      `ALTER TABLE profiles ADD COLUMN notify_read_at timestamp NULL`,
     ];
     for (const sql of alters) {
       try {

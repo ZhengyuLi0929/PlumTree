@@ -16,6 +16,12 @@ export default function MatchCardEmbed({ person, photoIdx: controlledIdx, onPhot
     if (onPhotoIdx) onPhotoIdx(next);
     else setInnerIdx(next);
   };
+  // 轮询会带来新对象引用；只有内容真的变了才重画名片（否则每 15s 重排一次，图片闪烁、页面卡顿）
+  const personKey = JSON.stringify([
+    person.name, person.gender, person.typeCode, person.birthYear, person.city, person.job,
+    person.height, person.mbti, person.intro, person.expectation, person.value,
+    person.photos.map((p) => p.url).join("|"),
+  ]);
 
   useEffect(() => {
     if (!document.getElementById("mc-style")) {
@@ -44,7 +50,8 @@ export default function MatchCardEmbed({ person, photoIdx: controlledIdx, onPhot
         box.style.height = `${Math.ceil(card.offsetHeight * scale) + 2}px`;
       });
     }
-  }, [person, photoIdx, scale]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personKey, photoIdx, scale]);
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;

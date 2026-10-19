@@ -83,6 +83,8 @@ export const profiles = mysqlTable("profiles", {
   datePrefs: text("date_prefs"),
   /** 模拟日期（YYYY-MM-DD，仅灰度内测用；null=真实时间） */
   simDate: varchar("sim_date", { length: 10 }),
+  /** 「我的信箱」通知读到哪了（晚于这个时间的 notify 消息算未读） */
+  notifyReadAt: timestamp("notify_read_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -308,9 +310,13 @@ export const webMessages = mysqlTable("web_messages", {
   /** 发送方 profile_id；bot 回复时 from=对方、to=接收者 */
   fromProfileId: bigint("from_profile_id", { mode: "number" }).notNull(),
   toProfileId: bigint("to_profile_id", { mode: "number" }),
-  /** note=给匹配对象的小纸条 user/bot=月老网页对话 */
+  /** note=给匹配对象的小纸条 user/bot=丘比特网页对话 */
   kind: varchar("kind", { length: 8 }).notNull(),
   content: text("content"),
   dayKey: varchar("day_key", { length: 10 }),
+  /** 1=系统通知（计入「我的信箱」未读徽标，也在丘比特聊天里展示） */
+  notify: int("notify").notNull().default(0),
+  /** 通知去重键：同一天同一 tag 只发一次（如 note-open / tue-prompt / fri-confirm / feedback） */
+  tag: varchar("tag", { length: 32 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

@@ -51,7 +51,16 @@ export async function myActiveMatch(profile: { id: number; simDate: string | nul
       ),
     )
     .orderBy(desc(matches.id));
-  return rows.find((r) => ["sent", "chatting", "confirmed", "dating", "declined"].includes(r.state));
+  const match = rows.find((r) => ["sent", "chatting", "confirmed", "dating", "declined"].includes(r.state));
+  // 周五没见结果就进入周末：还没表态的人自动视为不见面
+  if (match && ["sent", "chatting"].includes(match.state)) {
+    const dow = simDow(profile) ?? new Date(Date.now() + 8 * 3600 * 1000).getUTCDay();
+    if ([6, 0].includes(dow) && (!match.manReply || !match.womanReply)) {
+      await db.update(matches).set({ state: "declined" }).where(eq(matches.id, match.id));
+      match.state = "declined";
+    }
+  }
+  return match;
 }
 
 export async function noteQuotaLeft(profile: { id: number; simDate: string | null }): Promise<number> {
@@ -75,6 +84,9 @@ export async function sendNote(profile: { id: number; simDate: string | null }, 
   await ensureTable();
   const db = getDb();
   await db.insert(webMessages).values({ fromProfileId: profile.id, toProfileId: partnerId, kind: "note", content: text.trim(), dayKey: cstDayKey(effectiveNow(profile)) });
+  // 给对方推一条信箱通知（丘比特聊天框可见 + 未读徽标）
+  const { notifyUser, NOTIFY_TEXT } = await import("./notify");
+  await notifyUser(partnerId, NOTIFY_TEXT.note, undefined, cstDayKey(effectiveNow(profile)));
   return { ok: true as const };
 }
 
