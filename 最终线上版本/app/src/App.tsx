@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router'
+import Landing from './pages/Landing'
 import Home from './pages/Home'
 import MeGate, { MeIndex } from './pages/me/MeGate'
 import MeMatch from './pages/me/MeMatch'
@@ -25,7 +26,9 @@ export default function App() {
     <>
       <VisitTracker />
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<Landing />} />
+        {/* 爱情人格测试（51 题完整流程） */}
+        <Route path="/quiz" element={<Home />} />
         {/* /me：登录门禁 + 五个子 tab 各占一条路由（非 beta 用户为旧版单页） */}
         <Route path="/me" element={<MeGate />}>
           <Route index element={<MeIndex />} />

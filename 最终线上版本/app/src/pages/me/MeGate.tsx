@@ -21,11 +21,11 @@ export default function MeGate() {
   const location = useLocation();
   // 预览口令：/me?preview=142857（线上也可查看；写库只在本地开发环境生效）
   const preview = new URLSearchParams(window.location.search).get("preview") === "142857";
-  // 灰度开关：?beta=1 开启并在本浏览器记住，?beta=0 关闭
+  // 灰度开关已全量放开：默认人人可见五个 tab；?beta=0 临时回退旧版单页，?beta=1 恢复（模拟器仍按账号开启）
   const q = new URLSearchParams(window.location.search);
   if (q.get("beta") === "1") sessionStorage.setItem("tz_beta", "1");
-  if (q.get("beta") === "0") sessionStorage.removeItem("tz_beta");
-  const beta = sessionStorage.getItem("tz_beta") === "1";
+  if (q.get("beta") === "0") sessionStorage.setItem("tz_beta", "0");
+  const beta = sessionStorage.getItem("tz_beta") !== "0";
   // 未登录/登录过期的失败立即落到登录页，不再白等一个 retry 周期
   const me = trpc.responses.memberMe.useQuery(preview ? { preview: true } : undefined, {
     retry: preview
